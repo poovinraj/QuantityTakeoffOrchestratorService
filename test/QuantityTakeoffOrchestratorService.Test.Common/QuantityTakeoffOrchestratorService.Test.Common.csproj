@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+      <!--AutoFixture warning-->
+      <NoWarn>$(NoWarn);NU1603</NoWarn>
+    </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mep.Platform.Authentication.Middleware" Version="2.11.0" />
+    <PackageReference Include="Mep.Platform.Extensions.AspNetCore.TestSuite" Version="2.11.0" />
+  </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\src\QuantityTakeoffOrchestratorService\QuantityTakeoffOrchestratorService.csproj" />
+    </ItemGroup>
+
+</Project>

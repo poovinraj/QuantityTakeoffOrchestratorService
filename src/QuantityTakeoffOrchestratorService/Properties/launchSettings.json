@@ -1,0 +1,32 @@
+﻿{
+    "iisSettings": {
+        "windowsAuthentication": false,
+        "anonymousAuthentication": true,
+        "iisExpress": {
+            "applicationUrl": "http://localhost:9257",
+            "sslPort": 44305
+        }
+    },
+    "profiles": {
+        "QuantityTakeoffOrchestratorService": {
+            "commandName": "Project",
+            "dotnetRunMessages": true,
+            "launchBrowser": true,
+            "applicationUrl": "https://localhost:9257",
+            "environmentVariables": {
+                "ASPNETCORE_ENVIRONMENT": "localhost",
+                "REGION": "US-OR",
+                "BUILD_NUMBER": "<Version>"
+            }
+        },
+        "IIS Express": {
+            "commandName": "IISExpress",
+            "launchBrowser": true,
+            "environmentVariables": {
+                "ASPNETCORE_ENVIRONMENT": "localhost",
+                "REGION": "US-OR",
+                "BUILD_NUMBER": "<Version>"
+            }
+        }
+    }
+}

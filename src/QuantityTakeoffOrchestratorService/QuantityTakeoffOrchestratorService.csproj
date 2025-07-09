@@ -1,0 +1,83 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <AssemblyName>QuantityTakeoffOrchestratorService</AssemblyName>
+    <RootNamespace>QuantityTakeoffOrchestratorService</RootNamespace>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>$(MSBuildProjectName).Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>$(MSBuildProjectName).IntegrationTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>$(MSBuildProjectName).UnitTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>$(MSBuildProjectName).LoadTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Asp.Versioning.Mvc" Version="8.1.0" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
+    <PackageReference Include="MassTransit.Azure.ServiceBus.Core" Version="8.2.5" />
+    <PackageReference Include="MassTransit.MongoDb" Version="8.2.5" />
+    <PackageReference Include="Mep.Platform.Authorization.Middleware" Version="2.10.4" />
+    <PackageReference Include="Mep.Platform.Extensions.AutoMapper" Version="2.10.4" />
+    <PackageReference Include="Mep.Platform.Extensions.Azure.AppConfiguration" Version="2.10.4" />
+    <PackageReference Include="Mep.Platform.Extensions.MongoDb" Version="2.10.4" />
+    <PackageReference Include="Mep.Platform.Extensions.Monitoring.Serilog" Version="2.10.4" />
+    <PackageReference Include="Mep.Platform.Extensions.Swashbuckle.FluentValidation" Version="2.10.4" />
+    <PackageReference Include="Mep.Platform.Extensions.TestContainers" Version="3.0.14" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.17" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.NewtonsoftJson" Version="8.0.8" />
+    <PackageReference Include="Microsoft.Azure.SignalR" Version="1.30.3" />
+    <PackageReference Include="MongoDB.Driver.Core" Version="2.30.0" />
+    <PackageReference Include="NewRelic.Agent" Version="10.42.0" />
+    <PackageReference Include="TrimBim.Tools.NET" Version="2.28.2" />
+    <PackageReference Include="TrimbleCloud.FileService" Version="2.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Docker\docker-compose.yml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="readme.md">
+      <DependentUpon>appsettings.json</DependentUpon>
+    </Content>
+    <Content Update="appsettings.dev.json">
+      <DependentUpon>appsettings.json</DependentUpon>
+    </Content>
+    <Content Update="appsettings.prod.json">
+      <DependentUpon>appsettings.json</DependentUpon>
+    </Content>
+    <Content Update="appsettings.stg.json">
+      <DependentUpon>appsettings.json</DependentUpon>
+    </Content>
+    <Content Update="appsettings.localhost.json">
+      <DependentUpon>appsettings.json</DependentUpon>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="Views\Service\index.cshtml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Processors\Interfaces\" />
+    <Folder Include="Repositories\Interfaces\" />
+  </ItemGroup>
+
+</Project>
