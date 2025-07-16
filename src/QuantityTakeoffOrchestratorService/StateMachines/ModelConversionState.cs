@@ -1,5 +1,6 @@
 ﻿using MassTransit;
 using MongoDB.Bson.Serialization.Attributes;
+using System;
 
 namespace QuantityTakeoffOrchestratorService.StateMachines;
 
@@ -49,4 +50,14 @@ public class ModelConversionState : SagaStateMachineInstance, ISagaVersion
     ///     Success / failure related message 
     /// </summary>
     public string Message { get; set; }
+
+    /// <summary>
+    ///     Event received timestamp UTC Now
+    /// </summary>
+    public DateTime? EventReceivedOn { get; set; }
+
+    /// <summary>
+    ///     Event completed timestamp UTC Now
+    /// </summary>
+    public DateTime? EventCompletedOn { get; set; }
 }

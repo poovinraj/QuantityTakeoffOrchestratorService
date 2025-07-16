@@ -5,6 +5,7 @@ using QuantityTakeoffOrchestratorService.Helpers;
 using QuantityTakeoffOrchestratorService.Models;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
 using QuantityTakeoffOrchestratorService.Processors;
+using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffService.MassTransitContracts;
 using System;
 using System.Diagnostics;
@@ -19,18 +20,26 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimbleModel>
 {
     private readonly IHubContext<QuantityTakeoffOrchestratorHub> _hubContext;
     private readonly IModelConversionProcessor _modelConversionProcessor;
+    private readonly IDataProtectionService _dataProtectionService;
+    private readonly IAesEncryptionService _aesEncryptionService;
 
     /// <summary>
     ///     constructor for ProcessTrimbleModelConsumer
     /// </summary>
     /// <param name="hubContext"></param>
     /// <param name="modelConversionProcessor"></param>
+    /// <param name="dataProtectionService"></param>
+    /// <param name="aesEncryptionService"></param>
     public ProcessTrimbleModelConsumer(
-        IHubContext<QuantityTakeoffOrchestratorHub> hubContext, 
-        IModelConversionProcessor modelConversionProcessor)
+        IHubContext<QuantityTakeoffOrchestratorHub> hubContext,
+        IModelConversionProcessor modelConversionProcessor,
+        IDataProtectionService dataProtectionService,
+        IAesEncryptionService aesEncryptionService)
     {
         _hubContext = hubContext;
         _modelConversionProcessor = modelConversionProcessor;
+        _dataProtectionService = dataProtectionService;
+        _aesEncryptionService = aesEncryptionService;
     }
 
     /// <summary>
@@ -45,39 +54,33 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimbleModel>
         var traceHeaders = NewRelicHelper.InsertDistributedTraceHeaders();
 
 
-        // Process the message immediately
-        // No state tracking between messages
-        // Send notifications if needed
-
         await _hubContext.Clients.Group(context.Message.NotificationGroup)
             .SendAsync("ModelConversionStatus", new ConversionStatus() { Status = "Started", JobModelId = context.Message.JobModelId , Progress = 0 });
 
         try {
 
-            //Thread.Sleep(1000); // Simulate processing delay
+            // getting user access token from headers
+            var encryptedAccessToken = Convert.FromBase64String(context.Headers.Get<string>("AccessToken")!);
+            var encryptedAesKey = Convert.FromBase64String(context.Headers.Get<string>("AesKey")!);
+
+            var aesKey = await _dataProtectionService.Decrypt(encryptedAesKey);
+            var accessToken = _aesEncryptionService.Decrypt(encryptedAccessToken, aesKey);
+
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                throw new Exception("No access token was provided!");
+            }
 
             var result = await _modelConversionProcessor
                 .ProcessAddModelRequestAndCreateJsonFile(
                     context.Message.JobId,
                     context.Message.ModelId,
                     context.Message.ModelVersionId,
-                    context.Message.UserAccessToken,
+                    accessToken,
                     context.Message.SpaceId,
                     context.Message.FolderId,
                     context.Message.NotificationGroup);
 
-            //for (int i = 0; i < 10; i++)
-            //{
-            //    // Simulate progress updates
-            //    await _hubContext.Clients.Group(context.Message.NotificationGroup)
-            //        .SendAsync("ModelConversionStatus", new ConversionStatus() { Status = "Progressing", Progress = i * 10 });
-
-            //    Thread.Sleep(500); // Simulate work
-            //}
-
-            // Simulate successful processing
-            //await _hubContext.Clients.Group(context.Message.NotificationGroup)
-            //    .SendAsync("ModelConversionCompleted", new { /* data */ });
 
             if (result.IsConvertedSuccessfully)
             {
@@ -108,10 +111,6 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimbleModel>
         }
         catch (Exception ex)
         {
-            //// Handle any exceptions that occur during processing
-            //await _hubContext.Clients.Group(context.Message.NotificationGroup)
-            //    .SendAsync("ModelConversionFailed", new { Error = ex.Message });
-
             await context.Publish<IProcessTrimbleModelFailed>(new
             {
                 JobId = context.Message.JobId,

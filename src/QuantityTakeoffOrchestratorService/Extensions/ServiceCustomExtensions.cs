@@ -42,6 +42,8 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffOrchestratorService.Processors;
+using Microsoft.Extensions.Azure;
+using Azure.Identity;
 
 namespace QuantityTakeoffOrchestratorService.Extensions;
 
@@ -94,43 +96,6 @@ public static class ServiceCustomExtensions
             .AddAuthenticationSchemes(GrantType.AuthCode)
             .Build());
 
-        //simple extension to get customer policy(this get customer id only)
-        //authOptionsBuilder.AddCustomerPolicy();
-
-        //extended version
-        //When we use this policy agaist authorize it will make sure to get the customer-id and user email id
-        //like this we can add any claims as we needed
-        //authOptionsBuilder.AddCustomPolicy("Customer", () => new AuthorizationPolicyBuilder()
-        //    .RequireAuthenticatedUser()
-        //    .RequireMepClaims((mepClaims, context, requirement, _) =>
-        //    {
-        //        var customerId = context.User.Claims.GetCustomerIdClaim();
-        //        if (customerId != null)
-        //        {
-        //            context.Succeed(requirement);
-        //            return;
-        //        }
-
-        //        customerId = mepClaims?.GetCustomerIdClaim();
-        //        if (customerId == null)
-        //        {
-        //            context.Fail();
-        //            return;
-        //        }
-
-        //        context?.User.AddExtendedIdentity(customerId);
-
-        //        //add email id also
-        //        var mailId = mepClaims?.GetEmailClaims()?.FirstOrDefault()?.Value;
-        //        if (mailId != null)
-        //        {
-        //            context?.User.AddExtendedIdentity(new Claim(ClaimTypes.Email, mailId));
-        //        }
-
-        //        context?.Succeed(requirement);
-        //    })
-        //    .AddAuthenticationSchemes(GrantType.AuthCode)
-        //    .Build());
     }
 
     /// <summary>
@@ -221,6 +186,28 @@ public static class ServiceCustomExtensions
         webApplicationBuilder.Services.TryAddScoped<IConnectClientService, ConnectClientService>();
         webApplicationBuilder.Services.AddHttpClient("httpClient");
 
+        webApplicationBuilder.Services.AddAzureClients(clientBuilder =>
+        {
+            var keyName = webApplicationBuilder.Configuration.GetSection("EncryptionVaultConfiguration:EncryptionKeyName").Value;
+            var keyVaultUri = webApplicationBuilder.Configuration.GetSection("EncryptionVaultConfiguration:EncryptionVaultUri").Value;
+            var fullKeyUri = new Uri(keyVaultUri + keyName);
+            clientBuilder.AddCryptographyClient(fullKeyUri);
+
+            var defaultAzureCredentialOptions = new DefaultAzureCredentialOptions
+            {
+                ExcludeInteractiveBrowserCredential = true,
+                ExcludeAzurePowerShellCredential = true,
+                ExcludeSharedTokenCacheCredential = true,
+                ExcludeVisualStudioCodeCredential = true,
+                ExcludeVisualStudioCredential = true,
+                ExcludeManagedIdentityCredential = true
+            };
+
+            clientBuilder.UseCredential(new DefaultAzureCredential(defaultAzureCredentialOptions));
+        });
+        webApplicationBuilder.Services.TryAddScoped<IDataProtectionService, DataProtectionService>();
+        webApplicationBuilder.Services.TryAddScoped<IAesEncryptionService, AesEncryptionService>();
+
         if (webApplicationBuilder.Environment.EnvironmentName.Equals("integration", StringComparison.InvariantCultureIgnoreCase))
         {
             return webApplicationBuilder;
@@ -274,20 +261,9 @@ public static class ServiceCustomExtensions
 
         _ = webAppBuilder.Services.AddMassTransit(mt =>
         {
-            //mt.AddActivitiesFromNamespaceContaining<CreateEstimateActivity>();
             mt.SetKebabCaseEndpointNameFormatter();
 
             mt.AddConsumer<ProcessTrimbleModelConsumer>();
-
-            //var mongoDbService = webAppBuilder.Services.BuildServiceProvider().GetRequiredService<IMongoDbService>();
-            //var mongoDbName = webAppBuilder.Configuration.GetSection("MongoDbSettings:DatabaseName").Value;
-            //var mongoDatabase = mongoDbService.Client.GetDatabase(mongoDbName);
-
-            //// Configuring the stateMachine and the stateMachine repository (in our case mongodb repository).
-            //// A state machine defines the states, events, and behavior of a finite state machine.
-            //// A state machine is created once, and then used to apply event triggered behavior to state machine instances.
-            //_ = mt.AddSagaStateMachine<CreateEstimateStateMachine, CreateEstimateState, CreateEstimateStateMachineDefinition>()
-            //    .MongoDbRepository(r => { r.DatabaseFactory(_ => mongoDatabase); });
 
             // Add the state machine and configure its MongoDB repository
             mt.AddSagaStateMachine<ModelConversionStateMachine, ModelConversionState>()
@@ -339,11 +315,6 @@ public static class ServiceCustomExtensions
                 cfg.ConfigureEndpoints(context);
             });
 
-            //mt.AddRequestClient<ICreateEstimate>();
-            //mt.AddRequestClient<ICreateCloseout>();
-            //mt.AddRequestClient<IDeleteEstimate>();
-            //mt.AddRequestClient<ICreateEstimateWbs>();
-            //mt.AddRequestClient<IDeleteEstimateWbs>();
         });
 
         return webAppBuilder;

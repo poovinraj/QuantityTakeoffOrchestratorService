@@ -70,6 +70,7 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
                     context.Saga.ModelId = context.Message.ModelId;
                     context.Saga.CustomerId = context.Message.CustomerId;
                     context.Saga.NotificationGroup = context.Message.NotificationGroup;
+                    context.Saga.EventReceivedOn = DateTime.UtcNow;
 
                     Log.Logger.Information("Model conversion started for ModelId: {ModelId}, CustomerId: {CustomerId}, NotificationGroup: {NotificationGroup}",
                         context.Saga.ModelId, context.Saga.CustomerId, context.Saga.NotificationGroup);
@@ -84,6 +85,8 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
                 {
                     Log.Logger.Information("Model conversion completed for ModelId: {ModelId}, FileId: {FileId}, CompletedOn: {CompletedOn}",
                         context.Message.ModelId, context.Message.FileId, context.Message.ProcessCompletedOnUtcDateTime);
+                    
+                    context.Saga.EventCompletedOn = DateTime.UtcNow;
 
                     // Send notification to the group
                     if (!string.IsNullOrEmpty(context.Saga.NotificationGroup))
@@ -97,6 +100,7 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
                                     FileId = context.Message.FileId,
                                     CompletedOn = context.Message.ProcessCompletedOnUtcDateTime,
                                     FileDownloadUrl = context.Message.FileDownloadUrl,
+                                    CompletedWithIn = $"{(context.Saga.EventCompletedOn.GetValueOrDefault() - context.Saga.EventReceivedOn.GetValueOrDefault()).TotalSeconds} Seconds",
                                 });
                     }
                 })
@@ -109,6 +113,7 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
                         context.Message.ModelId, context.Message.Message, context.Message.ProcessCompletedOnUtcDateTime);
 
                     context.Saga.Message= context.Message.Message;
+                    context.Saga.EventCompletedOn = DateTime.UtcNow;
 
                     // Send failure notification to the group
                     if (!string.IsNullOrEmpty(context.Saga.NotificationGroup))
@@ -120,7 +125,7 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
                                     JobModelId = context.Message.JobModelId,
                                     ModelId = context.Message.ModelId,
                                     ErrorMessage = context.Message.Message,
-                                    FailedOn = context.Message.ProcessCompletedOnUtcDateTime
+                                    CompletedWithIn = $"{(context.Saga.EventCompletedOn.GetValueOrDefault() - context.Saga.EventReceivedOn.GetValueOrDefault()).TotalSeconds} Seconds",
                                 });
                     }
                 })

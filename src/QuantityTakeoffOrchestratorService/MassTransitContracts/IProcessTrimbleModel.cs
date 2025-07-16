@@ -50,11 +50,6 @@ public interface IProcessTrimbleModel
     public string FolderId { get; }
 
     /// <summary>
-    /// Gets or sets the user access token used for authentication when processing the Trimble model.
-    /// </summary>
-    public string UserAccessToken { get; set; }
-
-    /// <summary>
     /// Gets or sets the name of the model.
     /// </summary>
     string AddedbyUserName { get; set; }
