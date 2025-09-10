@@ -33,17 +33,17 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
     /// <summary>
     ///     Model conversion started event.
     /// </summary>
-    public Event<IProcessTrimbleModel> ModelConversionStarted { get; private set; }
+    public Event<IProcessTrimBimModel> ModelConversionStarted { get; private set; }
 
     /// <summary>
     ///     Model conversion completed successfully event.
     /// </summary>
-    public Event<IProcessTrimbleModelCompleted> ModelConversionCompleted { get; private set; }
+    public Event<ITrimBimModelProcessingCompleted> ModelConversionCompleted { get; private set; }
 
     /// <summary>
     ///     Model conversion failed event.
     /// </summary>
-    public Event<IProcessTrimbleModelFailed> ModelConversionFailed { get; private set; }
+    public Event<ITrimBimModelProcessingFailed> ModelConversionFailed { get; private set; }
 
     /// <summary>
     ///     This class represents the state machine for model conversion processes.
@@ -52,7 +52,7 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
     /// <exception cref="ArgumentNullException"></exception>
     public ModelConversionStateMachine(IHubContext<QuantityTakeoffOrchestratorHub> hubContext)
     {
-        _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
+      _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
 
         InstanceState(x => x.CurrentState);
 

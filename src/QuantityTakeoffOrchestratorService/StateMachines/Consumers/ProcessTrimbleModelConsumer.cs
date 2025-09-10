@@ -1,4 +1,4 @@
-﻿using MassTransit;
+using MassTransit;
 using Microsoft.AspNetCore.SignalR;
 using NewRelic.Api.Agent;
 using QuantityTakeoffOrchestratorService.Helpers;
@@ -16,7 +16,7 @@ namespace QuantityTakeoffOrchestratorService.StateMachines.Consumers;
 ///     This consumer processes the IProcessTrimbleModel message, perform a model conversion process.
 ///     At the same time, it sends progress updates to the specified SignalR group.
 /// </summary>
-public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimbleModel>
+public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
 {
     private readonly IHubContext<QuantityTakeoffOrchestratorHub> _hubContext;
     private readonly IModelConversionProcessor _modelConversionProcessor;
@@ -48,7 +48,7 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimbleModel>
     /// <param name="context"></param>
     /// <returns></returns>
     [Transaction]
-    public async Task Consume(ConsumeContext<IProcessTrimbleModel> context)
+    public async Task Consume(ConsumeContext<IProcessTrimBimModel> context)
     {
         var correlationId = context.Message.CorrelationId;
         var traceHeaders = NewRelicHelper.InsertDistributedTraceHeaders();
@@ -84,7 +84,7 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimbleModel>
 
             if (result.IsConvertedSuccessfully)
             {
-                await context.Publish<IProcessTrimbleModelCompleted>(new
+                await context.Publish<ITrimBimModelProcessingCompleted>(new
                 {
                     JobId = context.Message.JobId,                    
                     ModelId = context.Message.ModelId,
@@ -97,7 +97,7 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimbleModel>
             }
             else
             {
-                await context.Publish<IProcessTrimbleModelFailed>(new
+                await context.Publish<ITrimBimModelProcessingFailed>(new
                 {
                     JobId = context.Message.JobId,
                     ModelId = context.Message.ModelId,
@@ -111,7 +111,7 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimbleModel>
         }
         catch (Exception ex)
         {
-            await context.Publish<IProcessTrimbleModelFailed>(new
+            await context.Publish<ITrimBimModelProcessingFailed>(new
             {
                 JobId = context.Message.JobId,
                 ModelId = context.Message.ModelId,

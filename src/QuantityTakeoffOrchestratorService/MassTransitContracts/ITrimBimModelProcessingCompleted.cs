@@ -1,13 +1,8 @@
-﻿namespace QuantityTakeoffService.MassTransitContracts;
+﻿using QuantityTakeoffOrchestratorService.Models.View;
 
-/// <summary>
-/// Defines the contract for processing Trimble models, including properties for model identification,  authentication,
-/// and metadata such as customer and space information.
-/// </summary>
-/// <remarks>This interface provides the necessary properties to manage and process Trimble models, including 
-/// identifiers for the model, customer, space, and folder, as well as authentication tokens and metadata  such as the
-/// user who added the model and the date it was added.</remarks>
-public interface IProcessTrimbleModel
+namespace QuantityTakeoffService.MassTransitContracts;
+
+public interface ITrimBimModelProcessingCompleted
 {
     /// <summary>
     /// Gets or sets the job identifier.
@@ -25,11 +20,6 @@ public interface IProcessTrimbleModel
     string ModelId { get; set; }
 
     /// <summary>
-    /// Gets or sets the model version identifier.
-    /// </summary>
-    string ModelVersionId { get; }
-
-    /// <summary>
     ///     Correlation id
     /// </summary>
     public Guid CorrelationId { get; }
@@ -40,14 +30,19 @@ public interface IProcessTrimbleModel
     public string CustomerId { get; }
 
     /// <summary>
-    ///     Space id
+    /// Gets or sets the trimble file service file identifier.
     /// </summary>
-    public string SpaceId { get; }
+    public string FileId { get; set; }
 
     /// <summary>
-    ///     Folder id
+    /// Get or sets the file download URL for the model in trimble file service.
     /// </summary>
-    public string FolderId { get; }
+    public string FileDownloadUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the model unique properties.
+    /// </summary>
+    public List<PSetDefinition> UniqueProperties { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the model.
@@ -59,6 +54,10 @@ public interface IProcessTrimbleModel
     /// </summary>
     DateTime AddedOnUtcDateTime { get; set; }
 
+    /// <summary>
+    /// Gets or sets the date and time when the process was completed.
+    /// </summary>
+    DateTime ProcessCompletedOnUtcDateTime { get; set; }
     /// <summary>
     /// Gets or sets the type of the model.
     /// </summary>

@@ -1,6 +1,6 @@
 ﻿namespace QuantityTakeoffService.MassTransitContracts;
 
-public interface IProcessTrimbleModelFailed
+public interface ITrimBimModelProcessingFailed
 {
     /// <summary>
     /// Gets or sets the job identifier.

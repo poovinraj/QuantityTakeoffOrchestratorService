@@ -287,7 +287,7 @@ public static class ServiceCustomExtensions
                     mt.SetEndpointNameFormatter(new UserNameBasedQueueTopologyFormatter());
 
                     var envName = Environment.UserName;
-                    cfg.SubscriptionEndpoint<IProcessTrimbleModel>($"{envName}-{nameof(IProcessTrimbleModel)}", subscriptionConfig =>
+                    cfg.SubscriptionEndpoint<IProcessTrimBimModel>($"{envName}-{nameof(IProcessTrimBimModel)}", subscriptionConfig =>
                     {
                         subscriptionConfig.Rule =
                             new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
@@ -295,7 +295,7 @@ public static class ServiceCustomExtensions
                         subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
                     });
 
-                    cfg.SubscriptionEndpoint<IProcessTrimbleModelCompleted>($"{envName}-{nameof(IProcessTrimbleModelCompleted)}", subscriptionConfig =>
+                    cfg.SubscriptionEndpoint<ITrimBimModelProcessingCompleted>($"{envName}-{nameof(ITrimBimModelProcessingCompleted)}", subscriptionConfig =>
                     {
                         subscriptionConfig.Rule =
                             new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
@@ -303,7 +303,7 @@ public static class ServiceCustomExtensions
                         subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
                     });
 
-                    cfg.SubscriptionEndpoint<IProcessTrimbleModelFailed>($"{envName}-{nameof(IProcessTrimbleModelFailed)}", subscriptionConfig =>
+                    cfg.SubscriptionEndpoint<ITrimBimModelProcessingFailed>($"{envName}-{nameof(ITrimBimModelProcessingFailed)}", subscriptionConfig =>
                     {
                         subscriptionConfig.Rule =
                             new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
