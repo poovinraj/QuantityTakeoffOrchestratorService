@@ -37,5 +37,10 @@
     <ProjectReference Include="..\QuantityTakeoffOrchestratorService.Test.Common\QuantityTakeoffOrchestratorService.Test.Common.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Controllers\" />
+    <Folder Include="TestCases\" />
+  </ItemGroup>
+
 
 </Project>

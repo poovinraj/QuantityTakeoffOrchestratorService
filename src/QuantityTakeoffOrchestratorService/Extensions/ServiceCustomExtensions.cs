@@ -44,6 +44,9 @@ using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffOrchestratorService.Processors;
 using Microsoft.Extensions.Azure;
 using Azure.Identity;
+using QuantityTakeoffOrchestratorService.Processors.Interfaces;
+using QuantityTakeoffOrchestratorService.Repositories;
+using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
 
 namespace QuantityTakeoffOrchestratorService.Extensions;
 
@@ -184,6 +187,9 @@ public static class ServiceCustomExtensions
         webApplicationBuilder.Services.TryAddScoped<IModelConversionProcessor, ModelConversionProcessor>();
         webApplicationBuilder.Services.TryAddScoped<ITrimbleFileService, TrimbleFileService>();
         webApplicationBuilder.Services.TryAddScoped<IConnectClientService, ConnectClientService>();
+        webApplicationBuilder.Services.TryAddScoped<IModelMetaDataProcessor, ModelMetaDataProcessor>();
+        webApplicationBuilder.Services.TryAddScoped<IModelMetaDataRepository, ModelMetaDataRepository>();
+
         webApplicationBuilder.Services.AddHttpClient("httpClient");
 
         webApplicationBuilder.Services.AddAzureClients(clientBuilder =>

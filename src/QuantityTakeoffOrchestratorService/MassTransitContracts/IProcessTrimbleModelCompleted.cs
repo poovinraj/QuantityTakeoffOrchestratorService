@@ -1,4 +1,4 @@
-﻿using QuantityTakeoffOrchestratorService.Models.View;
+﻿using QuantityTakeoffOrchestratorService.Models.Domain;
 
 namespace QuantityTakeoffService.MassTransitContracts;
 
