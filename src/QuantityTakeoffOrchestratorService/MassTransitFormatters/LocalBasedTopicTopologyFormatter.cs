@@ -18,5 +18,5 @@ public class LocalBasedTopicTopologyFormatter : IEntityNameFormatter
     public LocalBasedTopicTopologyFormatter(IEntityNameFormatter original) => _original = original;
 
     /// <inheritdoc />
-    public string FormatEntityName<T>() => $"local-{_original.FormatEntityName<T>()}";
+    public string FormatEntityName<T>() => $"poovin-{_original.FormatEntityName<T>()}";
 }

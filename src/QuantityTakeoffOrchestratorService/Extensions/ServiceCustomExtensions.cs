@@ -20,13 +20,10 @@ using MassTransit;
 using Mep.Platform.Authorization.Middleware.Enums;
 using Mep.Platform.Authorization.Middleware.Extensions;
 using Mep.Platform.Authorization.Middleware.Options;
-using Mep.Platform.Extensions.Http;
-using Mep.Platform.Extensions.MongoDb.Services;
 using Mep.Platform.Models.Settings.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Azure.SignalR;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Conventions;
@@ -38,12 +35,14 @@ using QuantityTakeoffOrchestratorService.StateMachines;
 using QuantityTakeoffOrchestratorService.StateMachines.Consumers;
 using System.Configuration;
 using System.Diagnostics;
-using System.Security.Claims;
 using System.Text.Json.Serialization;
 using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffOrchestratorService.Processors;
 using Microsoft.Extensions.Azure;
 using Azure.Identity;
+using QuantityTakeoffOrchestratorService.Processors.Interfaces;
+using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
+using QuantityTakeoffOrchestratorService.Repositories;
 
 namespace QuantityTakeoffOrchestratorService.Extensions;
 
@@ -184,6 +183,8 @@ public static class ServiceCustomExtensions
         webApplicationBuilder.Services.TryAddScoped<IModelConversionProcessor, ModelConversionProcessor>();
         webApplicationBuilder.Services.TryAddScoped<ITrimbleFileService, TrimbleFileService>();
         webApplicationBuilder.Services.TryAddScoped<IConnectClientService, ConnectClientService>();
+        webApplicationBuilder.Services.TryAddScoped<IModelMetaDataProcessor, ModelMetaDataProcessor>();
+        webApplicationBuilder.Services.TryAddScoped<IModelMetaDataRepository, ModelMetaDataRepository>();
         webApplicationBuilder.Services.AddHttpClient("httpClient");
 
         webApplicationBuilder.Services.AddAzureClients(clientBuilder =>

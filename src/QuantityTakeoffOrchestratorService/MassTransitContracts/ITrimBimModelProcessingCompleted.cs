@@ -1,4 +1,4 @@
-﻿using QuantityTakeoffOrchestratorService.Models.View;
+﻿using QuantityTakeoffOrchestratorService.Models.Domain;
 
 namespace QuantityTakeoffService.MassTransitContracts;
 
@@ -42,7 +42,7 @@ public interface ITrimBimModelProcessingCompleted
     /// <summary>
     /// Gets or sets the model unique properties.
     /// </summary>
-    public List<PSetDefinition> UniqueProperties { get; set; }
+    List<PSetDefinition> UniqueProperties { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the model.

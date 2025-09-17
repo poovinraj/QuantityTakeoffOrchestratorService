@@ -1,3 +1,4 @@
+using AutoMapper;
 using MassTransit;
 using Microsoft.AspNetCore.SignalR;
 using NewRelic.Api.Agent;
@@ -5,6 +6,7 @@ using QuantityTakeoffOrchestratorService.Helpers;
 using QuantityTakeoffOrchestratorService.Models;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
 using QuantityTakeoffOrchestratorService.Processors;
+using QuantityTakeoffOrchestratorService.Processors.Interfaces;
 using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffService.MassTransitContracts;
 using System;
@@ -22,6 +24,9 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
     private readonly IModelConversionProcessor _modelConversionProcessor;
     private readonly IDataProtectionService _dataProtectionService;
     private readonly IAesEncryptionService _aesEncryptionService;
+    private readonly IModelMetaDataProcessor _modelMetaDataProcessor;
+    private readonly IMapper _mapper;
+    private readonly ILogger<ProcessTrimbleModelConsumer> _logger;
 
     /// <summary>
     ///     constructor for ProcessTrimbleModelConsumer
@@ -34,12 +39,18 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
         IHubContext<QuantityTakeoffOrchestratorHub> hubContext,
         IModelConversionProcessor modelConversionProcessor,
         IDataProtectionService dataProtectionService,
-        IAesEncryptionService aesEncryptionService)
+        IAesEncryptionService aesEncryptionService,
+        IModelMetaDataProcessor modelMetaDataProcessor,
+        IMapper mapper,
+        ILogger<ProcessTrimbleModelConsumer> logger)
     {
         _hubContext = hubContext;
         _modelConversionProcessor = modelConversionProcessor;
         _dataProtectionService = dataProtectionService;
         _aesEncryptionService = aesEncryptionService;
+        this._modelMetaDataProcessor = modelMetaDataProcessor;
+        this._mapper = mapper;
+        this._logger = logger;
     }
 
     /// <summary>
@@ -84,6 +95,10 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
 
             if (result.IsConvertedSuccessfully)
             {
+                //var domainUniqueProperties = _mapper.Map<IList<PSetDefinition>>(result.UniqueProperties);
+                var udpateResult = _modelMetaDataProcessor
+                    .UpdateModelMetaData(context.Message.ModelId, result.FileId, result.UniqueProperties).GetAwaiter().GetResult();
+
                 await context.Publish<ITrimBimModelProcessingCompleted>(new
                 {
                     JobId = context.Message.JobId,                    
@@ -91,7 +106,6 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
                     CorrelationId = context.Message.CorrelationId,
                     FileId = result.FileId,
                     FileDownloadUrl = result.FileDownloadUrl,
-                    UniqueProperties = result.UniqueProperties,
                     ProcessCompletedOnUtcDateTime = DateTime.UtcNow
                 });
             }
@@ -111,6 +125,9 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
         }
         catch (Exception ex)
         {
+            //await _hubContext.Clients.Group(context.Message.NotificationGroup)
+            //.SendAsync("ModelConversionFailed", new ConversionStatus() { Status = "Failed", JobModelId = context.Message.JobModelId, Progress = 0 });
+            _logger.LogError(ex, ex.Message);
             await context.Publish<ITrimBimModelProcessingFailed>(new
             {
                 JobId = context.Message.JobId,
