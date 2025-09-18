@@ -283,8 +283,11 @@ public static class ServiceCustomExtensions
                 //topics and endpoint (queues) custom formatters for Azure Service Bus localhost development
                 if (isUserNamePrefixRequired)
                 {
+                    // prefix the topic names with the user name to avoid conflicts
                     cfg.MessageTopology.SetEntityNameFormatter(
                         new UserNameBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
+
+                    // prefix the endpoint (queue) names with the user name to avoid conflicts
                     mt.SetEndpointNameFormatter(new UserNameBasedQueueTopologyFormatter());
 
                     var envName = Environment.UserName;
