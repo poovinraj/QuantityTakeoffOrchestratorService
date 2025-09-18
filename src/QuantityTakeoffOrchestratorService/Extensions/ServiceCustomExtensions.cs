@@ -28,7 +28,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Conventions;
 using QuantityTakeoffService.MassTransitContracts;
-using QuantityTakeoffOrchestratorService.MassTransitFormatters;
 using QuantityTakeoffOrchestratorService.Models.Configurations;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
 using QuantityTakeoffOrchestratorService.StateMachines;
@@ -43,6 +42,7 @@ using Azure.Identity;
 using QuantityTakeoffOrchestratorService.Processors.Interfaces;
 using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
 using QuantityTakeoffOrchestratorService.Repositories;
+using quantitytakeoffservice.MassTransitFormatters;
 
 namespace QuantityTakeoffOrchestratorService.Extensions;
 
@@ -253,12 +253,12 @@ public static class ServiceCustomExtensions
             throw new ConfigurationErrorsException("MongoDbSettings section is not configured properly.");
         }
 
-        //mass transit queue name formatter for Azure Service Bus localhost development
-        if (isUserNamePrefixRequired)
-        {
-            webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
-                new UserNameBasedQueueTopologyFormatter());
-        }
+        ////mass transit queue name formatter for Azure Service Bus localhost development
+        //if (isUserNamePrefixRequired)
+        //{
+        //    webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
+        //        new UserNameBasedQueueTopologyFormatter());
+        //}
 
         _ = webAppBuilder.Services.AddMassTransit(mt =>
         {
@@ -284,7 +284,7 @@ public static class ServiceCustomExtensions
                 if (isUserNamePrefixRequired)
                 {
                     cfg.MessageTopology.SetEntityNameFormatter(
-                        new LocalBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
+                        new UserNameBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
                     mt.SetEndpointNameFormatter(new UserNameBasedQueueTopologyFormatter());
 
                     var envName = Environment.UserName;
