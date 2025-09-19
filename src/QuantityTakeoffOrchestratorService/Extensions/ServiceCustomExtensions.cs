@@ -289,31 +289,7 @@ public static class ServiceCustomExtensions
 
                     // prefix the endpoint (queue) names with the user name to avoid conflicts
                     mt.SetEndpointNameFormatter(new UserNameBasedQueueTopologyFormatter());
-
-                    var envName = Environment.UserName;
-                    cfg.SubscriptionEndpoint<IProcessTrimBimModel>($"{envName}-{nameof(IProcessTrimBimModel)}", subscriptionConfig =>
-                    {
-                        subscriptionConfig.Rule =
-                            new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
-
-                        subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
-                    });
-
-                    cfg.SubscriptionEndpoint<ITrimBimModelProcessingCompleted>($"{envName}-{nameof(ITrimBimModelProcessingCompleted)}", subscriptionConfig =>
-                    {
-                        subscriptionConfig.Rule =
-                            new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
-
-                        subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
-                    });
-
-                    cfg.SubscriptionEndpoint<ITrimBimModelProcessingFailed>($"{envName}-{nameof(ITrimBimModelProcessingFailed)}", subscriptionConfig =>
-                    {
-                        subscriptionConfig.Rule =
-                            new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
-
-                        subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
-                    });
+                    
                 }
 
                 cfg.ConfigureEndpoints(context);
