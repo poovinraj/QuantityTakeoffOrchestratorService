@@ -4,21 +4,21 @@ using System.Diagnostics.CodeAnalysis;
 namespace quantitytakeoffservice.MassTransitFormatters;
 
 /// <summary>
-///     Topic name formatter that prefixes Azure Service Bus topics with the current Windows username.
-///     Used alongside UserNameBasedQueueTopologyFormatter to provide complete isolation
-///     between developers sharing a Service Bus namespace during development.
+///     Topic name formatter that prefixes Azure Service Bus topics with "local-".
+///     Used in development environments to isolate message topics between 
+///     development and production environments. Works alongside the username-based
+///     queue formatters to provide complete isolation of messaging resources.
 /// </summary>
 [ExcludeFromCodeCoverage]
-public class UserNameBasedTopicTopologyFormatter : IEntityNameFormatter
+public class LocalBasedTopicTopologyFormatter : IEntityNameFormatter
 {
     private readonly IEntityNameFormatter _innerFormatter;
-    private static readonly string UserName = Environment.UserName;
 
     /// <summary>
     ///     Creates a new instance of the UserNameBasedTopicTopologyFormatter
     /// </summary>
     /// <param name="innerFormatter">The base formatter that will format the topic name before username prefixing</param>
-    public UserNameBasedTopicTopologyFormatter(IEntityNameFormatter innerFormatter) =>
+    public LocalBasedTopicTopologyFormatter(IEntityNameFormatter innerFormatter) =>
         _innerFormatter = innerFormatter;
 
     /// <summary>
@@ -27,5 +27,5 @@ public class UserNameBasedTopicTopologyFormatter : IEntityNameFormatter
     /// </summary>
     /// <typeparam name="T">The message type to format</typeparam>
     /// <returns>A formatted topic name with username prefix</returns>
-    public string FormatEntityName<T>() => $"{UserName}-{_innerFormatter.FormatEntityName<T>()}";
+    public string FormatEntityName<T>() => $"local-{_innerFormatter.FormatEntityName<T>()}";
 }

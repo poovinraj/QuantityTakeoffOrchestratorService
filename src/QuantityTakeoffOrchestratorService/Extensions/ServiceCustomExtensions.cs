@@ -283,13 +283,30 @@ public static class ServiceCustomExtensions
                 //topics and endpoint (queues) custom formatters for Azure Service Bus localhost development
                 if (isUserNamePrefixRequired)
                 {
-                    // prefix the topic names with the user name to avoid conflicts
-                    cfg.MessageTopology.SetEntityNameFormatter(
-                        new UserNameBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
-
-                    // prefix the endpoint (queue) names with the user name to avoid conflicts
+                    // configure custom endpoint name formatter to prefix the user name to the queue names
                     mt.SetEndpointNameFormatter(new UserNameBasedQueueTopologyFormatter());
-                    
+
+                    // Automatically add UserName header to all messages (for filtering)
+                    cfg.ConfigurePublish(x => x.UseExecute(c => { c.Headers.Set("UserName", Environment.UserName); }));
+
+                    // set the local based topic name formatter to prefix topics with "local-"
+                    cfg.MessageTopology.SetEntityNameFormatter(
+                        new LocalBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
+
+                    var userName = Environment.UserName;
+
+                    // Create filter rule based on username
+                    var rule = new CreateRuleOptions($"user-{userName}", new SqlRuleFilter($"UserName = '{userName}'"));
+
+                    cfg.SubscriptionEndpoint<IProcessTrimBimModel>($"{userName}-{nameof(IProcessTrimBimModel)}",
+                        subscriptionConfig =>
+                        {
+                            subscriptionConfig.Rule = rule;
+                            subscriptionConfig.ConfigureConsumer<ProcessTrimbleModelConsumer>(context);
+                        });
+
+                    // Prevent auto-configuration of endpoints since we've manually configured them
+                    return;
                 }
 
                 cfg.ConfigureEndpoints(context);
