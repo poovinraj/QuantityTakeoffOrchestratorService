@@ -1,11 +1,22 @@
 ﻿namespace QuantityTakeoffOrchestratorService.Models.Constants;
 
+/// <summary>
+/// Defines standard properties related to BIM model product information.
+/// </summary>
 public static class ProductPset
 {
+    /// <summary>
+    /// The name of the property set used to group product-related properties.
+    /// </summary>
     public const string PSetName = "Product";
+
+    /// <summary>
+    /// Collection of fully qualified property keys, combining property names with
+    /// the property set name.
+    /// </summary>
     public static IReadOnlyCollection<string> Properties =
     [
-        $"{PropertyNames.ProductName},{PSetName}",
+            $"{PropertyNames.ProductName},{PSetName}",
             $"{PropertyNames.ProductDescription},{PSetName}",
             $"{PropertyNames.ProductObjectType},{PSetName}",
             $"{PropertyNames.OwningUser},{PSetName}",
@@ -16,6 +27,9 @@ public static class ProductPset
             $"{PropertyNames.Application},{PSetName}"
     ];
 
+    /// <summary>
+    /// Standardized property names for product metadata.
+    /// </summary>
     public static class PropertyNames
     {
         public const string ProductName = "Product Name";

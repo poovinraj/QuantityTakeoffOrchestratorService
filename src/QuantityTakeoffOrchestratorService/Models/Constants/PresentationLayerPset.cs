@@ -1,7 +1,7 @@
 ﻿namespace QuantityTakeoffOrchestratorService.Models.Constants;
 
 /// <summary>
-/// Presentation Layer Property Set Property
+/// Defines properties related to the presentation layer information in BIM models.
 /// </summary>
 public class PresentationLayerPset
 {

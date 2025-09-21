@@ -1,66 +1,87 @@
 ﻿namespace QuantityTakeoffService.MassTransitContracts;
 
 /// <summary>
-/// Defines the contract for processing Trimble models, including properties for model identification,  authentication,
-/// and metadata such as customer and space information.
+/// Defines the contract for asynchronous Trimble BIM model processing requests sent via MassTransit.
+/// This message initiates the extraction and analysis of 3D model data through a distributed
+/// processing pipeline, transferring the model from Trimble Connect to the file service.
 /// </summary>
-/// <remarks>This interface provides the necessary properties to manage and process Trimble models, including 
-/// identifiers for the model, customer, space, and folder, as well as authentication tokens and metadata  such as the
-/// user who added the model and the date it was added.</remarks>
+/// <remarks>
+/// When published, this message triggers an orchestration service to:
+/// 1. Download the model from Trimble Connect using the provided credentials
+/// 2. Process and extract model properties and metadata
+/// 3. Upload the processed model to Trimble File Service
+/// 4. Update related database entries with extracted information
+/// 5. Publish completion/failure notifications upon completion
+/// 
+/// The process is secured through encrypted access tokens passed in message headers
+/// rather than in the message body for enhanced security.
+/// </remarks>
 public interface IProcessTrimBimModel
 {
     /// <summary>
-    /// Gets or sets the job identifier.
+    /// The job identifier that this model belongs to
     /// </summary>
     string JobId { get; set; }
 
     /// <summary>
-    /// Gets or sets the job model identifier.
+    /// The unique identifier of the model entry in JobModelMetaData collection
     /// </summary>
     string JobModelId { get; set; }
 
     /// <summary>
-    /// Gets or sets the connect model identifier.
+    /// The identifier of the model in Trimble Connect
     /// </summary>
-    string ModelId { get; set; }
+    string TrimbleConnectModelId { get; set; }
 
     /// <summary>
-    /// Gets or sets the model version identifier.
+    /// The specific version of the model to be processed, allowing for tracking model
+    /// changes over time while maintaining version history.
     /// </summary>
     string ModelVersionId { get; }
 
     /// <summary>
-    ///     Correlation id
+    /// Unique identifier used to correlate this processing request with its corresponding 
+    /// completion or failure messages across distributed services, enabling end-to-end
+    /// traceability of the asynchronous processing workflow.
     /// </summary>
+    /// <remarks>
+    /// The CorrelationId is generated when publishing a model processing message and is passed 
+    /// to the orchestration service, which then includes it in any completion or failure messages.
+    /// This enables proper message routing and provides a consistent identifier for logging, 
+    /// troubleshooting and monitoring the asynchronous processing workflow.
+    /// </remarks>
     public Guid CorrelationId { get; }
 
     /// <summary>
-    ///     Customer id
+    /// The identifier of the customer who owns this model
     /// </summary>
     public string CustomerId { get; }
 
     /// <summary>
-    ///     Space id
+    /// The identifier of the storage space in Trimble File Service where the processed model
+    /// will be stored.
     /// </summary>
     public string SpaceId { get; }
 
     /// <summary>
-    ///     Folder id
+    /// The identifier of the folder within the storage space where the processed model
+    /// will be stored.
     /// </summary>
     public string FolderId { get; }
 
     /// <summary>
-    /// Gets or sets the name of the model.
+    /// The name of the user who initiated the model processing request
     /// </summary>
-    string AddedbyUserName { get; set; }
+    string AddedByUser { get; set; }
 
     /// <summary>
-    /// Gets or sets the description of the model.
+    /// The UTC timestamp when the model processing request was initiated
     /// </summary>
     DateTime AddedOnUtcDateTime { get; set; }
 
     /// <summary>
-    /// Gets or sets the type of the model.
+    /// The identifier of the notification group that should receive updates about this
+    /// model's processing status
     /// </summary>
-    string NotificationGroup { get; set; }
+    string NotificationGroupId { get; set; }
 }

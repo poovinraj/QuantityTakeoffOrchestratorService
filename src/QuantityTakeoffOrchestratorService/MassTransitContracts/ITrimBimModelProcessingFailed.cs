@@ -1,51 +1,61 @@
 ﻿namespace QuantityTakeoffService.MassTransitContracts;
 
+/// <summary>
+/// Message contract indicating that a Trimble BIM model processing operation has failed.
+/// Contains details about the failure reason and identifiers needed for error tracking,
+/// notification, and correlation with the original processing request. This contract
+/// is published by the model conversion processor when errors occur and is consumed
+/// by the model conversion state machine to update the processing workflow state.
+/// </summary>
 public interface ITrimBimModelProcessingFailed
 {
     /// <summary>
-    /// Gets or sets the job identifier.
+    /// The job identifier that this model belongs to
     /// </summary>
     string JobId { get; set; }
 
     /// <summary>
-    /// Gets or sets the job model identifier.
+    /// The unique identifier of the model entry in JobModelMetaData collection
     /// </summary>
     string JobModelId { get; set; }
 
     /// <summary>
-    /// Gets or sets the connect model identifier.
+    /// The identifier of the model in Trimble Connect
     /// </summary>
-    string ModelId { get; set; }
+    string TrimbleConnectModelId { get; set; }
 
     /// <summary>
-    ///     Correlation id
+    /// Unique identifier used to correlate this failure message with its corresponding
+    /// processing request across distributed services, enabling end-to-end
+    /// traceability of the asynchronous processing workflow.
     /// </summary>
+    /// <remarks>
+    /// The CorrelationId is generated when publishing a model processing message and is passed 
+    /// to the orchestration service, which then includes it in any completion or failure messages.
+    /// This enables proper message routing and provides a consistent identifier for logging, 
+    /// troubleshooting and monitoring the asynchronous processing workflow.
+    /// </remarks>
     public Guid CorrelationId { get; }
 
     /// <summary>
-    ///     Customer id
+    /// The identifier of the customer who owns this model
     /// </summary>
     public string CustomerId { get; }
 
     /// <summary>
-    /// Gets or sets the process failure message.
+    /// The error message describing why the model processing operation failed.
     /// </summary>
     public string Message { get; set; }
-    /// <summary>
-    /// Gets or sets the name of the model.
-    /// </summary>
-    string AddedbyUserName { get; set; }
-    /// <summary>
-    /// Gets or sets the description of the model.
-    /// </summary>
-    DateTime AddedOnUtcDateTime { get; set; }
 
     /// <summary>
-    /// Gets or sets the date and time when the process was completed.
+    /// The UTC timestamp when the model processing operation failed.
     /// </summary>
     DateTime ProcessCompletedOnUtcDateTime { get; set; }
+
     /// <summary>
-    /// Gets or sets the type of the model.
+    /// The identifier of the SignalR notification group that should receive updates
+    /// about this model's processing failure. This group typically includes the client(s)
+    /// who initiated the model processing request.
     /// </summary>
-    string NotificationGroup { get; set; }
+    string NotificationGroupId { get; set; }
 }
