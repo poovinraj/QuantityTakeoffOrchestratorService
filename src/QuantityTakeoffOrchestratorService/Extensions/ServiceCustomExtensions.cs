@@ -208,6 +208,7 @@ public static class ServiceCustomExtensions
         });
         webApplicationBuilder.Services.TryAddScoped<IDataProtectionService, DataProtectionService>();
         webApplicationBuilder.Services.TryAddScoped<IAesEncryptionService, AesEncryptionService>();
+        webApplicationBuilder.Services.TryAddScoped<IModelConversionNotificationService, ModelConversionNotificationService>();
 
         if (webApplicationBuilder.Environment.EnvironmentName.Equals("integration", StringComparison.InvariantCultureIgnoreCase))
         {

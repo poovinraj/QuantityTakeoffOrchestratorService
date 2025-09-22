@@ -26,11 +26,11 @@ namespace QuantityTakeoffOrchestratorService.Repositories
         /// <param name="fileId"></param>
         /// <param name="pSetDefinitions"></param>
         /// <returns></returns>
-        public async Task<bool> UpdateFileIdAndPsetdef(string connectFileId, string fileId, IEnumerable<PSetDefinition> pSetDefinitions)
+        public async Task<bool> UpdateFileIdAndPSetDefinitionsForConnectModel(string connectFileId, string fileId, IEnumerable<PSetDefinition> pSetDefinitions)
         {
             var filter = Builders<ModelMetaDataDomain>.Filter.Eq(x => x.ConnectFileId, connectFileId);
             var update = Builders<ModelMetaDataDomain>.Update
-                .Set(x => x.fileId, fileId)
+                .Set(x => x.FileId, fileId)
                 .Set(x => x.PSetDefinitions, pSetDefinitions)
                 .Set(x => x.Metadata.LastUpdatedBy, "Saga System")
                 .Set(x => x.Metadata.LastUpdatedDate, DateTime.UtcNow);

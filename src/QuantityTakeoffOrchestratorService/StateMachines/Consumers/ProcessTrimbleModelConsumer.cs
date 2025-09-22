@@ -1,143 +1,162 @@
-using AutoMapper;
 using MassTransit;
 using Microsoft.AspNetCore.SignalR;
 using NewRelic.Api.Agent;
-using QuantityTakeoffOrchestratorService.Helpers;
 using QuantityTakeoffOrchestratorService.Models;
+using QuantityTakeoffOrchestratorService.Models.Request;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
-using QuantityTakeoffOrchestratorService.Processors;
 using QuantityTakeoffOrchestratorService.Processors.Interfaces;
 using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffService.MassTransitContracts;
-using System;
-using System.Diagnostics;
 
 namespace QuantityTakeoffOrchestratorService.StateMachines.Consumers;
 
 /// <summary>
-///     This consumer processes the IProcessTrimbleModel message, perform a model conversion process.
-///     At the same time, it sends progress updates to the specified SignalR group.
+/// Consumes BIM model processing requests from the message bus and orchestrates the model 
+/// conversion workflow. This consumer handles the decryption of access tokens, conversion
+/// of model data, and publication of success/failure messages while providing real-time
+/// status updates through SignalR.
 /// </summary>
 public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
 {
-    private readonly IHubContext<QuantityTakeoffOrchestratorHub> _hubContext;
+    private readonly IModelConversionNotificationService _notificationService;
     private readonly IModelConversionProcessor _modelConversionProcessor;
     private readonly IDataProtectionService _dataProtectionService;
     private readonly IAesEncryptionService _aesEncryptionService;
     private readonly IModelMetaDataProcessor _modelMetaDataProcessor;
-    private readonly IMapper _mapper;
     private readonly ILogger<ProcessTrimbleModelConsumer> _logger;
 
     /// <summary>
-    ///     constructor for ProcessTrimbleModelConsumer
+    /// Initializes a new instance of the <see cref="ProcessTrimbleModelConsumer"/> class
+    /// with required dependencies.
     /// </summary>
-    /// <param name="hubContext"></param>
-    /// <param name="modelConversionProcessor"></param>
-    /// <param name="dataProtectionService"></param>
-    /// <param name="aesEncryptionService"></param>
+    /// <param name="hubContext">SignalR hub context for sending real-time notifications</param>
+    /// <param name="modelConversionProcessor">Service for converting BIM models to takeoff format</param>
+    /// <param name="dataProtectionService">Service for decrypting the AES key</param>
+    /// <param name="aesEncryptionService">Service for decrypting the access token</param>
+    /// <param name="modelMetaDataProcessor">Service for updating model metadata</param>
+    /// <param name="logger">Logger for diagnostic information</param>
     public ProcessTrimbleModelConsumer(
-        IHubContext<QuantityTakeoffOrchestratorHub> hubContext,
+        IModelConversionNotificationService notificationService,
         IModelConversionProcessor modelConversionProcessor,
         IDataProtectionService dataProtectionService,
         IAesEncryptionService aesEncryptionService,
         IModelMetaDataProcessor modelMetaDataProcessor,
-        IMapper mapper,
         ILogger<ProcessTrimbleModelConsumer> logger)
     {
-        _hubContext = hubContext;
+        _notificationService = notificationService;
         _modelConversionProcessor = modelConversionProcessor;
         _dataProtectionService = dataProtectionService;
         _aesEncryptionService = aesEncryptionService;
         this._modelMetaDataProcessor = modelMetaDataProcessor;
-        this._mapper = mapper;
         this._logger = logger;
     }
 
     /// <summary>
-    /// Consumes the IProcessTrimbleModel message, processes the model conversion,
+    /// Consumes an <see cref="IProcessTrimBimModel"/> message, processes the model conversion,
+    /// and publishes the appropriate completion or failure message based on the result.
     /// </summary>
-    /// <param name="context"></param>
-    /// <returns></returns>
+    /// <param name="context">The consume context containing the message and publishing capabilities</param>
     [Transaction]
     public async Task Consume(ConsumeContext<IProcessTrimBimModel> context)
     {
-        var correlationId = context.Message.CorrelationId;
-        var traceHeaders = NewRelicHelper.InsertDistributedTraceHeaders();
-
-
-        await _hubContext.Clients.Group(context.Message.NotificationGroup)
-            .SendAsync("ModelConversionStatus", new ConversionStatus() { Status = "Started", JobModelId = context.Message.JobModelId , Progress = 0 });
+        // Send initial status notification
+        await _notificationService.SendStatusUpdate(
+            context.Message.NotificationGroupId,
+            context.Message.JobModelId,
+            "Started",
+            0);
 
         try {
 
-            // getting user access token from headers
-            var encryptedAccessToken = Convert.FromBase64String(context.Headers.Get<string>("AccessToken")!);
-            var encryptedAesKey = Convert.FromBase64String(context.Headers.Get<string>("AesKey")!);
-
-            var aesKey = await _dataProtectionService.Decrypt(encryptedAesKey);
-            var accessToken = _aesEncryptionService.Decrypt(encryptedAccessToken, aesKey);
-
-            if (string.IsNullOrWhiteSpace(accessToken))
+            // Decrypt the access token
+            string decryptedAccessToken = await DecryptAccessToken(context);
+            if (string.IsNullOrWhiteSpace(decryptedAccessToken))
             {
-                throw new Exception("No access token was provided!");
+                throw new InvalidOperationException("No access token was provided or decryption failed");
             }
 
-            var result = await _modelConversionProcessor
-                .ProcessAddModelRequestAndCreateJsonFile(
-                    context.Message.JobId,
-                    context.Message.ModelId,
-                    context.Message.ModelVersionId,
-                    accessToken,
-                    context.Message.SpaceId,
-                    context.Message.FolderId,
-                    context.Message.NotificationGroup);
+            // Create the conversion request
+            var conversionRequest = CreateModelConversionRequest(context.Message, decryptedAccessToken);
 
+            // Process the model conversion
+            var result = await _modelConversionProcessor.ConvertTrimBimModelAndUploadToFileService(conversionRequest);
 
+            // Handle the result
             if (result.IsConvertedSuccessfully)
             {
-                //var domainUniqueProperties = _mapper.Map<IList<PSetDefinition>>(result.UniqueProperties);
-                var udpateResult = _modelMetaDataProcessor
-                    .UpdateModelMetaData(context.Message.ModelId, result.FileId, result.UniqueProperties).GetAwaiter().GetResult();
-
-                await context.Publish<ITrimBimModelProcessingCompleted>(new
-                {
-                    JobId = context.Message.JobId,                    
-                    ModelId = context.Message.ModelId,
-                    CorrelationId = context.Message.CorrelationId,
-                    FileId = result.FileId,
-                    FileDownloadUrl = result.FileDownloadUrl,
-                    ProcessCompletedOnUtcDateTime = DateTime.UtcNow
-                });
+                await HandleSuccessfulConversion(context, result);
             }
             else
             {
-                await context.Publish<ITrimBimModelProcessingFailed>(new
-                {
-                    JobId = context.Message.JobId,
-                    ModelId = context.Message.ModelId,
-                    CorrelationId = context.Message.CorrelationId,
-                    Message = result.ErrorMessage,
-                    ProcessCompletedOnUtcDateTime = DateTime.UtcNow
-                });
+                await HandleFailedConversion(context, result.ErrorMessage);
             }
-
-            
         }
         catch (Exception ex)
         {
-            //await _hubContext.Clients.Group(context.Message.NotificationGroup)
-            //.SendAsync("ModelConversionFailed", new ConversionStatus() { Status = "Failed", JobModelId = context.Message.JobModelId, Progress = 0 });
-            _logger.LogError(ex, ex.Message);
-            await context.Publish<ITrimBimModelProcessingFailed>(new
-            {
-                JobId = context.Message.JobId,
-                ModelId = context.Message.ModelId,
-                CorrelationId = context.Message.CorrelationId,
-                Message = ex.Message,
-                ProcessCompletedOnUtcDateTime = DateTime.UtcNow
-            });
+            _logger.LogError(ex, "Failed to process model conversion request");
+            await HandleFailedConversion(context, ex.Message);
         }
-
-        
     }
+
+    #region Helper Methods
+
+    private async Task<string> DecryptAccessToken(ConsumeContext<IProcessTrimBimModel> context)
+    {
+        var encryptedAccessToken = Convert.FromBase64String(context.Headers.Get<string>("AccessToken")!);
+        var encryptedAesKey = Convert.FromBase64String(context.Headers.Get<string>("AesKey")!);
+
+        var decryptedAesKey = await _dataProtectionService.Decrypt(encryptedAesKey);
+        return _aesEncryptionService.Decrypt(encryptedAccessToken, decryptedAesKey);
+    }
+
+    private ModelConversionRequest CreateModelConversionRequest(IProcessTrimBimModel message, string accessToken)
+    {
+        return new ModelConversionRequest
+        {
+            JobModelId = message.JobModelId,
+            TrimbleConnectModelId = message.TrimbleConnectModelId,
+            ModelVersionId = message.ModelVersionId,
+            SpaceId = message.SpaceId,
+            FolderId = message.FolderId,
+            NotificationGroupId = message.NotificationGroupId,
+            UserAccessToken = accessToken
+        };
+    }
+
+    private async Task HandleSuccessfulConversion(ConsumeContext<IProcessTrimBimModel> context,
+        Models.View.ModelProcessingResult result)
+    {
+        // Update model metadata
+        await _modelMetaDataProcessor.UpdateFileIdAndPSetDefinitionsForConnectModel(
+            context.Message.TrimbleConnectModelId,
+            result.FileId,
+            result.UniqueProperties);
+
+        // Publish completion message
+        await context.Publish<ITrimBimModelProcessingCompleted>(new
+        {
+            context.Message.JobId,
+            context.Message.JobModelId,
+            context.Message.TrimbleConnectModelId,
+            context.Message.CorrelationId,
+            context.Message.CustomerId,
+            result.FileDownloadUrl,
+            ProcessingCompletedOnUtc = DateTime.UtcNow,
+        });
+    }
+
+    private async Task HandleFailedConversion(ConsumeContext<IProcessTrimBimModel> context, string errorMessage)
+    {
+        await context.Publish<ITrimBimModelProcessingFailed>(new
+        {
+            context.Message.JobId,
+            context.Message.JobModelId,
+            context.Message.TrimbleConnectModelId,
+            context.Message.CorrelationId,
+            context.Message.CustomerId,
+            Message = errorMessage,
+            ProcessingCompletedOnUtc = DateTime.UtcNow
+        });
+    }
+    #endregion
 }

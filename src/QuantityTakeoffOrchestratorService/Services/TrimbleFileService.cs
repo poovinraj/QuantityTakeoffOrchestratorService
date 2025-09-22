@@ -14,8 +14,6 @@ public class TrimbleFileService : ITrimbleFileService
 {
     private readonly FileServiceClient client;
     private readonly string _baseUrl;
-    private readonly IHttpContextAccessor _httpContextAccessor;
-    private string folderName;
     private int chunkSize;
 
     private readonly TrimbleFileServiceConfig _fileServiceConfig;
@@ -29,13 +27,9 @@ public class TrimbleFileService : ITrimbleFileService
         IOptions<TrimbleFileServiceConfig> fileServiceConfig,
         IHttpContextAccessor httpContextAccessor)
     {
-        _httpContextAccessor = httpContextAccessor;
-
         _fileServiceConfig = fileServiceConfig.Value;
-
         _baseUrl = _fileServiceConfig.baseUrl;
         chunkSize = _fileServiceConfig.chunkSize;
-        folderName = _fileServiceConfig.folderName;
 
         ITokenProvider tokenProvider = new ClientCredentialTokenProvider(isProductionEnvironment() ? OpenIdEndpointProvider.Production : OpenIdEndpointProvider.Staging,
             _fileServiceConfig.AppId,

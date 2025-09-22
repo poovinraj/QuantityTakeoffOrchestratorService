@@ -4,24 +4,27 @@ using Trimble.Technology.TrimBim;
 namespace QuantityTakeoffOrchestratorService.Models.View;
 
 /// <summary>
-/// Model Properties
+/// Represents a property of a model element with its key, value, and type information.
 /// </summary>
 [BsonIgnoreExtraElements]
 public class ModelProperties
 {
     /// <summary>
-    /// property key
+    /// The fully qualified key of the property, typically in the format "PropertyName,PropertySetName".
+    /// This format allows unique identification of properties across different property sets.
     /// </summary>
     [BsonElement("k")]
     public string PropKey { get; set; }
     /// <summary>
-    /// property value
+    /// The value of the property as a string. This is the actual data associated with the property key.
     /// </summary>
     [BsonElement("v")]
     public string PropValue { get; set; }
 
     /// <summary>
-    /// PropValueType
+    /// The type of the property value (e.g., string, length, area, volume, boolean).
+    /// This information is preserved to enable proper formatting and unit conversion
+    /// when displaying or calculating with the property value.
     /// </summary>
     [BsonElement("vt")]
     public PropertyType PropValueType { get; set; }

@@ -17,7 +17,7 @@
 
 using AutoMapper;
 
-namespace QuantityTakeoffOrchestratorService.Processor.Mapping;
+namespace QuantityTakeoffOrchestratorService.Models.Mapping;
 
 /// <summary>
 ///     The AutoMapper profile for this service.

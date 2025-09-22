@@ -24,9 +24,9 @@ namespace QuantityTakeoffOrchestratorService.Processors
         /// <param name="uniqueProperties"></param>
         /// <param name="fileId"></param>
         /// <returns></returns>
-        public async Task<bool> UpdateModelMetaData(string connectFileId, string fileId, IEnumerable<PSetDefinition> uniqueProperties)
+        public async Task<bool> UpdateFileIdAndPSetDefinitionsForConnectModel(string connectFileId, string fileId, IEnumerable<PSetDefinition> uniqueProperties)
         {
-            return await _modelMetaDataRepository.UpdateFileIdAndPsetdef(connectFileId, fileId, uniqueProperties);
+            return await _modelMetaDataRepository.UpdateFileIdAndPSetDefinitionsForConnectModel(connectFileId, fileId, uniqueProperties);
         }
     }
 }

@@ -51,11 +51,4 @@ public interface ITrimBimModelProcessingFailed
     /// The UTC timestamp when the model processing operation failed.
     /// </summary>
     DateTime ProcessCompletedOnUtcDateTime { get; set; }
-
-    /// <summary>
-    /// The identifier of the SignalR notification group that should receive updates
-    /// about this model's processing failure. This group typically includes the client(s)
-    /// who initiated the model processing request.
-    /// </summary>
-    string NotificationGroupId { get; set; }
 }

@@ -29,7 +29,7 @@ using Mep.Platform.Extensions.Swashbuckle.FluentValidation;
 using Mep.Platform.FeatureFlags.Sdk.Extensions;
 using QuantityTakeoffOrchestratorService.Extensions;
 using QuantityTakeoffOrchestratorService.Models.Configurations;
-using QuantityTakeoffOrchestratorService.Processor.Mapping;
+using QuantityTakeoffOrchestratorService.Models.Mapping;
 
 var builder = WebApplication.CreateBuilder(args)
     .UsePlatformAzureAppConfiguration(x =>

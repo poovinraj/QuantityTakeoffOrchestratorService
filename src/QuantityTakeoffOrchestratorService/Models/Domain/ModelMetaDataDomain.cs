@@ -24,7 +24,7 @@ namespace QuantityTakeoffOrchestratorService.Models.Domain
         /// The identifier of the processed JSON file in the Trimble File Service.
         /// This file contains the converted model data optimized for quantity takeoff operations.
         /// </summary>
-        public string fileId { get; set; }
+        public string FileId { get; set; }
         /// <summary>
         /// Standard tracking information including creation, modification timestamps,
         /// user identifiers, and customer association for this model.

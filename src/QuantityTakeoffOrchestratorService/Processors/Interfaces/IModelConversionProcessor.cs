@@ -1,21 +1,30 @@
-﻿using QuantityTakeoffOrchestratorService.Models.View;
+﻿using QuantityTakeoffOrchestratorService.Models.Request;
+using QuantityTakeoffOrchestratorService.Models.View;
 
 namespace QuantityTakeoffOrchestratorService.Processors.Interfaces
 {
     public interface IModelConversionProcessor
     {
+
         /// <summary>
-        ///     Processes the request to add a model and creates a JSON file with the model details.
-        ///     then upload to connect file service and create a model in the specified space and folder.
+        /// Processes a BIM model from Trimble Connect, converting it to a format optimized
+        /// for quantity takeoff operations and uploading the result to Trimble File Service.
         /// </summary>
-        /// <param name="jobModelId"></param>
-        /// <param name="modelReferecenId"></param>
-        /// <param name="modelVersionId"></param>
-        /// <param name="userAccessToken"></param>
-        /// <param name="spaceId"></param>
-        /// <param name="folderId"></param>
-        /// <param name="notificationGroup"></param>
-        /// <returns></returns>
-        Task<ProcessModelResult> ProcessAddModelRequestAndCreateJsonFile(string jobModelId, string modelReferecenId, string modelVersionId, string userAccessToken, string spaceId, string folderId, string notificationGroup);
+        /// <param name="request">
+        /// The model conversion request containing all necessary parameters for downloading,
+        /// processing, and storing the model, including access credentials and identifiers
+        /// </param>
+        /// <returns>
+        /// A task that represents the asynchronous operation, containing a ModelProcessingResult
+        /// with details about the processed model, including file references, property definitions,
+        /// and success status
+        /// </returns>
+        /// <remarks>
+        /// This method orchestrates the entire model conversion process, from downloading the
+        /// source model to uploading the processed JSON file. It sends progress notifications
+        /// through SignalR at key points in the workflow and extracts property definitions that
+        /// can be used for filtering and categorizing model elements in the quantity takeoff UI.
+        /// </remarks>
+        Task<ModelProcessingResult> ConvertTrimBimModelAndUploadToFileService(ModelConversionRequest request);
     }
 }

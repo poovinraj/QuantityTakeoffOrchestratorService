@@ -26,7 +26,7 @@ public class ModelConversionState : SagaStateMachineInstance, ISagaVersion
     /// <summary>
     ///     Model id
     /// </summary>
-    public string ModelId { get; set; }
+    public string TrimbleConnectModelId { get; set; }
 
     /// <summary>
     ///     Job Model id

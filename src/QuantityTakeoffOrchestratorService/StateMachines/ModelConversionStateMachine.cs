@@ -67,13 +67,13 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
                     context.Saga.JobId = context.Message.JobId;
                     context.Saga.JobModelId = context.Message.JobModelId;
                     context.Saga.CorrelationId = context.Message.CorrelationId;
-                    context.Saga.ModelId = context.Message.ModelId;
+                    context.Saga.TrimbleConnectModelId = context.Message.TrimbleConnectModelId;
                     context.Saga.CustomerId = context.Message.CustomerId;
-                    context.Saga.NotificationGroup = context.Message.NotificationGroup;
+                    context.Saga.NotificationGroup = context.Message.NotificationGroupId;
                     context.Saga.EventReceivedOn = DateTime.UtcNow;
 
                     Log.Logger.Information("Model conversion started for ModelId: {ModelId}, CustomerId: {CustomerId}, NotificationGroup: {NotificationGroup}",
-                        context.Saga.ModelId, context.Saga.CustomerId, context.Saga.NotificationGroup);
+                        context.Saga.TrimbleConnectModelId, context.Saga.CustomerId, context.Saga.NotificationGroup);
                 })
                 .TransitionTo(Converting));
 
@@ -83,8 +83,8 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
             When(ModelConversionCompleted)
                 .Then(async context =>
                 {
-                    Log.Logger.Information("Model conversion completed for ModelId: {ModelId}, FileId: {FileId}, CompletedOn: {CompletedOn}",
-                        context.Message.TrimbleConnectModelId, context.Message.TFSFileId, context.Message.ProcessingCompletedOnUtc);
+                    Log.Logger.Information("Model conversion completed for ModelId: {ModelId}, CompletedOn: {CompletedOn}",
+                        context.Message.TrimbleConnectModelId, context.Message.ProcessingCompletedOnUtc);
                     
                     context.Saga.EventCompletedOn = DateTime.UtcNow;
 
@@ -96,8 +96,7 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
                                 new
                                 {
                                     JobModelId = context.Saga.JobModelId,
-                                    ModelId = context.Saga.ModelId,
-                                    FileId = context.Message.TFSFileId,
+                                    ModelId = context.Saga.TrimbleConnectModelId,
                                     CompletedOn = context.Message.ProcessingCompletedOnUtc,
                                     FileDownloadUrl = context.Message.ModelFileDownloadUrl,
                                     CompletedWithIn = $"{(context.Saga.EventCompletedOn.GetValueOrDefault() - context.Saga.EventReceivedOn.GetValueOrDefault()).TotalSeconds} Seconds",

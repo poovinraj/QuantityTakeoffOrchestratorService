@@ -1,13 +1,14 @@
 ﻿namespace QuantityTakeoffOrchestratorService.Models.View;
 
 /// <summary>
-/// ItemType
+/// Classification of BIM model elements by their architectural or structural function.
+/// This enumeration provides a standardized set of element types that can be consistently
+/// used across the quantity takeoff system, regardless of the source model's classification system.
 /// </summary>
-/// Enum property name value should be saved in camel case to support localization key in client side.
 public enum ItemType
 {
     /// <summary>
-    /// Other
+    /// A generic element type for elements that don't fit into other specific categories.
     /// </summary>
     other,
     /// <summary>

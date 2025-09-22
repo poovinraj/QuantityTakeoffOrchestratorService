@@ -2,7 +2,7 @@
 
 namespace QuantityTakeoffOrchestratorService.Models.View;
 
-public class ProcessModelResult
+public class ModelProcessingResult
 {
     /// <summary>
     /// Gets or sets the model identifier.
