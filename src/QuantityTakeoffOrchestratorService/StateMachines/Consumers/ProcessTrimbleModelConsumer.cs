@@ -2,6 +2,7 @@ using MassTransit;
 using Microsoft.AspNetCore.SignalR;
 using NewRelic.Api.Agent;
 using QuantityTakeoffOrchestratorService.Models;
+using QuantityTakeoffOrchestratorService.Models.Enums;
 using QuantityTakeoffOrchestratorService.Models.Request;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
 using QuantityTakeoffOrchestratorService.Processors.Interfaces;
@@ -22,7 +23,6 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
     private readonly IModelConversionProcessor _modelConversionProcessor;
     private readonly IDataProtectionService _dataProtectionService;
     private readonly IAesEncryptionService _aesEncryptionService;
-    private readonly IModelMetaDataProcessor _modelMetaDataProcessor;
     private readonly ILogger<ProcessTrimbleModelConsumer> _logger;
 
     /// <summary>
@@ -40,15 +40,13 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
         IModelConversionProcessor modelConversionProcessor,
         IDataProtectionService dataProtectionService,
         IAesEncryptionService aesEncryptionService,
-        IModelMetaDataProcessor modelMetaDataProcessor,
         ILogger<ProcessTrimbleModelConsumer> logger)
     {
         _notificationService = notificationService;
         _modelConversionProcessor = modelConversionProcessor;
         _dataProtectionService = dataProtectionService;
         _aesEncryptionService = aesEncryptionService;
-        this._modelMetaDataProcessor = modelMetaDataProcessor;
-        this._logger = logger;
+        _logger = logger;
     }
 
     /// <summary>
@@ -60,11 +58,15 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
     public async Task Consume(ConsumeContext<IProcessTrimBimModel> context)
     {
         // Send initial status notification
-        await _notificationService.SendStatusUpdate(
-            context.Message.NotificationGroupId,
-            context.Message.JobModelId,
-            "Started",
-            0);
+        await _notificationService.SendStatusUpdate(new ConversionNotificationRequest
+        {
+            NotificationGroupId = context.Message.NotificationGroupId,
+            Status = new ConversionStatus
+            {
+                JobModelId = context.Message.JobModelId,
+                Stage = ConversionStage.ProcessingModel
+            }
+        });
 
         try {
 
@@ -82,13 +84,13 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
             var result = await _modelConversionProcessor.ConvertTrimBimModelAndUploadToFileService(conversionRequest);
 
             // Handle the result
-            if (result.IsConvertedSuccessfully)
+            if (result.IsConversionSuccessful)
             {
                 await HandleSuccessfulConversion(context, result);
             }
             else
             {
-                await HandleFailedConversion(context, result.ErrorMessage);
+                await HandleFailedConversion(context, result.ProcessingErrorMessage);
             }
         }
         catch (Exception ex)
@@ -126,11 +128,10 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
     private async Task HandleSuccessfulConversion(ConsumeContext<IProcessTrimBimModel> context,
         Models.View.ModelProcessingResult result)
     {
-        // Update model metadata
-        await _modelMetaDataProcessor.UpdateFileIdAndPSetDefinitionsForConnectModel(
-            context.Message.TrimbleConnectModelId,
-            result.FileId,
-            result.UniqueProperties);
+        _logger.LogInformation(
+            "Model conversion completed successfully. JobModelId: {JobModelId}, ModelId: {ModelId}",
+            context.Message.JobModelId,
+            context.Message.TrimbleConnectModelId);
 
         // Publish completion message
         await context.Publish<ITrimBimModelProcessingCompleted>(new
@@ -147,6 +148,12 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
 
     private async Task HandleFailedConversion(ConsumeContext<IProcessTrimBimModel> context, string errorMessage)
     {
+        _logger.LogError(
+            "Model conversion failed. JobModelId: {JobModelId}, ModelId: {ModelId}, Error: {ErrorMessage}",
+            context.Message.JobModelId,
+            context.Message.TrimbleConnectModelId,
+            errorMessage);
+
         await context.Publish<ITrimBimModelProcessingFailed>(new
         {
             context.Message.JobId,
@@ -156,6 +163,17 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
             context.Message.CustomerId,
             Message = errorMessage,
             ProcessingCompletedOnUtc = DateTime.UtcNow
+        });
+
+        await _notificationService.SendStatusUpdate(new ConversionNotificationRequest
+        {
+            NotificationGroupId = context.Message.NotificationGroupId,
+            Status = new ConversionStatus
+            {
+                JobModelId = context.Message.JobModelId,
+                Stage = ConversionStage.Completed,
+                Result = ConversionResult.Failure
+            }
         });
     }
     #endregion

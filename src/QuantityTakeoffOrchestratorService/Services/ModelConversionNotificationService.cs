@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using QuantityTakeoffOrchestratorService.Models;
+using QuantityTakeoffOrchestratorService.Models.Request;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
 
 namespace QuantityTakeoffOrchestratorService.Services
@@ -27,24 +28,22 @@ namespace QuantityTakeoffOrchestratorService.Services
         }
 
         /// <inheritdoc/>
-        public async Task SendStatusUpdate(string notificationGroupId, string jobModelId, string status, int progress)
+        public async Task SendStatusUpdate(ConversionNotificationRequest conversionNotificationRequest)
         {
             try
             {
-                await _hubContext.Clients.Group(notificationGroupId)
-                    .SendAsync("ModelConversionStatus", new ConversionStatus
-                    {
-                        JobModelId = jobModelId,
-                        Status = status,
-                        Progress = progress
-                    });
+                await _hubContext.Clients.Group(conversionNotificationRequest.NotificationGroupId)
+                        .SendAsync("ModelConversionStatus", conversionNotificationRequest.Status);
 
-                _logger.LogDebug("Sent model conversion status update: {Status} ({Progress}%) for job model {JobModelId} to group {GroupId}",
-                    status, progress, jobModelId, notificationGroupId);
+                _logger.LogDebug("Sent model conversion status update: {Stage} for job model {JobModelId} to group {GroupId}",
+                    conversionNotificationRequest.Status.Stage,
+                    conversionNotificationRequest.Status.JobModelId,
+                    conversionNotificationRequest.NotificationGroupId);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to send model conversion status update to group {GroupId}", notificationGroupId);
+                _logger.LogWarning(ex, "Failed to send model conversion status update to group {GroupId}",
+                    conversionNotificationRequest.NotificationGroupId);
                 // Don't rethrow - status updates should not interrupt the main processing flow
             }
         }

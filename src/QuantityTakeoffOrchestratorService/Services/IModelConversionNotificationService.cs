@@ -1,4 +1,6 @@
-﻿namespace QuantityTakeoffOrchestratorService.Services
+﻿using QuantityTakeoffOrchestratorService.Models.Request;
+
+namespace QuantityTakeoffOrchestratorService.Services
 {
     /// <summary>
     /// Provides centralized real-time notification capabilities for model conversion operations.
@@ -8,13 +10,16 @@
     public interface IModelConversionNotificationService
     {
         /// <summary>
-        /// Sends a status update notification to clients subscribed to the specified notification group.
+        /// Sends a structured status update notification to clients subscribed to a notification group.
         /// </summary>
-        /// <param name="notificationGroupId">The SignalR group to send the notification to</param>
-        /// <param name="jobModelId">The identifier of the job model being processed</param>
-        /// <param name="status">The current status message</param>
-        /// <param name="progress">The progress percentage (0-100)</param>
+        /// <param name="conversionNotificationRequest">
+        /// A structured request containing notification details including:
+        /// - The target notification group ID
+        /// - The job model ID being processed
+        /// - The current conversion stage (Started, DownloadingModel, ProcessingModel, etc.)
+        /// - The result status (Success or Failure) when applicable
+        /// </param>
         /// <returns>A task representing the asynchronous operation</returns>
-        Task SendStatusUpdate(string notificationGroupId, string jobModelId, string status, int progress);
+        Task SendStatusUpdate(ConversionNotificationRequest conversionNotificationRequest);
     }
 }

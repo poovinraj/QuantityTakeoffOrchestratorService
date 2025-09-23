@@ -5,48 +5,30 @@ namespace QuantityTakeoffOrchestratorService.Models.View;
 public class ModelProcessingResult
 {
     /// <summary>
-    /// Gets or sets the model identifier.
+    /// The unique identifier of the model entry in JobModelMetaData collection
     /// </summary>
-    public string ModelId { get; set; }
+    public string JobModelId { get; set; }
 
     /// <summary>
-    /// Gets or sets the space identifier.
+    /// The identifier of the model in Trimble Connect
     /// </summary>
-    public string SpaceId { get; set; }
-    
-    /// <summary>
-    /// Gets or sets the folder identifier.
-    /// </summary>
-    public string FolderId { get; set; }
+    public string TrimbleConnectModelId { get; set; }
 
     /// <summary>
-    /// Gets or sets the file identifier.
+    /// The URL that can be used to download the processed model file.
+    /// This URL is provided to clients for accessing the model data.
     /// </summary>
-    public string FileId { get; set; }
+    public string? FileDownloadUrl { get; internal set; }
 
     /// <summary>
-    /// Gets or sets the list of unique property set definitions.
+    /// Indicates whether the model conversion process completed successfully.
     /// </summary>
-    public List<PSetDefinition> UniqueProperties { get; set; }
+    public bool IsConversionSuccessful { get; set; }
 
     /// <summary>
-    /// Gets or sets the customer identifier.
+    /// Contains an error message when the conversion process fails.
+    /// This provides context about why the model couldn't be processed.
+    /// Only populated when IsConversionSuccessful is false.
     /// </summary>
-    public string CustomerId { get; set; }
-
-    /// <summary>
-    /// Gets or sets the user name.
-    /// </summary>
-    public string UserName { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the model was converted successfully.
-    /// </summary>
-    public bool IsConvertedSuccessfully { get; set; }
-
-    /// <summary>
-    /// Gets or sets the error message if conversion was unsuccessful.
-    /// </summary>
-    public string ErrorMessage { get; set; }
-    public string FileDownloadUrl { get; internal set; }
+    public string? ProcessingErrorMessage { get; set; }
 }
