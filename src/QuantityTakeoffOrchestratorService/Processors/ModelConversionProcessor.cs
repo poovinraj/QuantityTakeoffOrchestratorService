@@ -30,7 +30,6 @@ public class ModelConversionProcessor : IModelConversionProcessor
     private readonly IConnectClientService _connectClient;
     private readonly ITrimbleFileService _trimbleFileService;
     private readonly ILogger<ModelConversionProcessor> _logger;
-    private readonly IModelConversionNotificationService _notificationService;
     private readonly IModelMetaDataProcessor _modelMetaDataProcessor;
 
     /// <summary>
@@ -44,13 +43,11 @@ public class ModelConversionProcessor : IModelConversionProcessor
         ITrimbleFileService trimbleFileService,
         ILogger<ModelConversionProcessor> logger,
         IHubContext<QuantityTakeoffOrchestratorHub> hubContext,
-        IModelConversionNotificationService notificationService,
         IModelMetaDataProcessor modelMetaDataProcessor)
     {
         this._connectClient = connectClientService;
         this._trimbleFileService = trimbleFileService;
         _logger = logger;
-        _notificationService = notificationService;
         _modelMetaDataProcessor = modelMetaDataProcessor;
     }
 
@@ -73,16 +70,6 @@ public class ModelConversionProcessor : IModelConversionProcessor
             });
 
             // Step 1: Download and parse the BIM model
-            await _notificationService.SendStatusUpdate(new ConversionNotificationRequest
-            {
-                NotificationGroupId = conversionRequest.NotificationGroupId,
-                Status = new ConversionStatus
-                {
-                    JobModelId = conversionRequest.JobModelId,
-                    Stage = ConversionStage.ProcessingModel
-                }
-            });
-
             var model = await ProcessTrimBim(
                 conversionRequest.UserAccessToken,
                 conversionRequest.TrimbleConnectModelId,
@@ -94,29 +81,11 @@ public class ModelConversionProcessor : IModelConversionProcessor
             }
 
             // Step 2: Extract elements and create JSON
-            await _notificationService.SendStatusUpdate(new ConversionNotificationRequest
-            {
-                NotificationGroupId = conversionRequest.NotificationGroupId,
-                Status = new ConversionStatus
-                {
-                    JobModelId = conversionRequest.JobModelId,
-                    Stage = ConversionStage.ExtractingElements
-                }
-            });
             var takeoffElementsJson = Generate3DTakeoffElementsJson(
                 conversionRequest.TrimbleConnectModelId,
                 model);
 
             // Step 3: Upload processed model to file service
-            await _notificationService.SendStatusUpdate(new ConversionNotificationRequest
-            {
-                NotificationGroupId = conversionRequest.NotificationGroupId,
-                Status = new ConversionStatus
-                {
-                    JobModelId = conversionRequest.JobModelId,
-                    Stage = ConversionStage.UploadingContent
-                }
-            });
             var fileId = await UploadToConnectFileService(
                 conversionRequest.SpaceId,
                 conversionRequest.FolderId,
@@ -134,39 +103,19 @@ public class ModelConversionProcessor : IModelConversionProcessor
             var fileDownloadUrl = await fileDownloadUrlTask;
 
             // Step 4: Update model metadata in the database
-            await _notificationService.SendStatusUpdate(new ConversionNotificationRequest
-            {
-                NotificationGroupId = conversionRequest.NotificationGroupId,
-                Status = new ConversionStatus
-                {
-                    JobModelId = conversionRequest.JobModelId,
-                    Stage = ConversionStage.UpdatingModelMetadata
-                }
-            });
 
             await _modelMetaDataProcessor.UpdateFileIdAndPSetDefinitionsForConnectModel(
                 conversionRequest.TrimbleConnectModelId,
                 fileId,
                 uniquePropertyDefinitions);
 
-            // Send completion notification with success result
-            await _notificationService.SendStatusUpdate(new ConversionNotificationRequest
-            {
-                NotificationGroupId = conversionRequest.NotificationGroupId,
-                Status = new ConversionStatus
-                {
-                    JobModelId = conversionRequest.JobModelId,
-                    Stage = ConversionStage.Completed,
-                    Result = ConversionResult.Success
-                }
-            });
-
             // Return success result
             return new ModelProcessingResult
             {
                 JobModelId = conversionRequest.JobModelId,
                 TrimbleConnectModelId = conversionRequest.TrimbleConnectModelId,
-                IsConversionSuccessful = true
+                IsConversionSuccessful = true,
+                FileDownloadUrl = fileDownloadUrl
             };
         }
         catch (Exception ex)

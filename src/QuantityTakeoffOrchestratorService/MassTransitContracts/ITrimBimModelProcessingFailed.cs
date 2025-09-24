@@ -45,7 +45,7 @@ public interface ITrimBimModelProcessingFailed
     /// <summary>
     /// The error message describing why the model processing operation failed.
     /// </summary>
-    public string Message { get; set; }
+    public string ErrorMessage { get; set; }
 
     /// <summary>
     /// The UTC timestamp when the model processing operation failed.

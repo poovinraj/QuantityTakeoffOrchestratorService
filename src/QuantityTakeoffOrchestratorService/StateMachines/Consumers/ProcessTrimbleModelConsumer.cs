@@ -19,7 +19,6 @@ namespace QuantityTakeoffOrchestratorService.StateMachines.Consumers;
 /// </summary>
 public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
 {
-    private readonly IModelConversionNotificationService _notificationService;
     private readonly IModelConversionProcessor _modelConversionProcessor;
     private readonly IDataProtectionService _dataProtectionService;
     private readonly IAesEncryptionService _aesEncryptionService;
@@ -36,13 +35,11 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
     /// <param name="modelMetaDataProcessor">Service for updating model metadata</param>
     /// <param name="logger">Logger for diagnostic information</param>
     public ProcessTrimbleModelConsumer(
-        IModelConversionNotificationService notificationService,
         IModelConversionProcessor modelConversionProcessor,
         IDataProtectionService dataProtectionService,
         IAesEncryptionService aesEncryptionService,
         ILogger<ProcessTrimbleModelConsumer> logger)
     {
-        _notificationService = notificationService;
         _modelConversionProcessor = modelConversionProcessor;
         _dataProtectionService = dataProtectionService;
         _aesEncryptionService = aesEncryptionService;
@@ -57,17 +54,6 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
     [Transaction]
     public async Task Consume(ConsumeContext<IProcessTrimBimModel> context)
     {
-        // Send initial status notification
-        await _notificationService.SendStatusUpdate(new ConversionNotificationRequest
-        {
-            NotificationGroupId = context.Message.NotificationGroupId,
-            Status = new ConversionStatus
-            {
-                JobModelId = context.Message.JobModelId,
-                Stage = ConversionStage.ProcessingModel
-            }
-        });
-
         try {
 
             // Decrypt the access token
@@ -163,17 +149,6 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
             context.Message.CustomerId,
             Message = errorMessage,
             ProcessingCompletedOnUtc = DateTime.UtcNow
-        });
-
-        await _notificationService.SendStatusUpdate(new ConversionNotificationRequest
-        {
-            NotificationGroupId = context.Message.NotificationGroupId,
-            Status = new ConversionStatus
-            {
-                JobModelId = context.Message.JobModelId,
-                Stage = ConversionStage.Completed,
-                Result = ConversionResult.Failure
-            }
         });
     }
     #endregion

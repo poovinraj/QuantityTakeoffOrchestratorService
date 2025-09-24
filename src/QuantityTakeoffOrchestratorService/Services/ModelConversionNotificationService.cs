@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.SignalR;
-using QuantityTakeoffOrchestratorService.Models;
 using QuantityTakeoffOrchestratorService.Models.Request;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
 
