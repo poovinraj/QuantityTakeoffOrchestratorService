@@ -3,10 +3,8 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using NewRelic.Api.Agent;
 using QuantityTakeoffOrchestratorService.Helpers;
-using QuantityTakeoffOrchestratorService.Models;
 using QuantityTakeoffOrchestratorService.Models.Constants;
 using QuantityTakeoffOrchestratorService.Models.Domain;
-using QuantityTakeoffOrchestratorService.Models.Enums;
 using QuantityTakeoffOrchestratorService.Models.Mapping;
 using QuantityTakeoffOrchestratorService.Models.Request;
 using QuantityTakeoffOrchestratorService.Models.View;
@@ -107,7 +105,8 @@ public class ModelConversionProcessor : IModelConversionProcessor
             await _modelMetaDataProcessor.UpdateFileIdAndPSetDefinitionsForConnectModel(
                 conversionRequest.TrimbleConnectModelId,
                 fileId,
-                uniquePropertyDefinitions);
+                uniquePropertyDefinitions,
+                conversionRequest.CustomerId);
 
             // Return success result
             return new ModelProcessingResult
@@ -115,7 +114,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 JobModelId = conversionRequest.JobModelId,
                 TrimbleConnectModelId = conversionRequest.TrimbleConnectModelId,
                 IsConversionSuccessful = true,
-                FileDownloadUrl = fileDownloadUrl
+                ModelFileDownloadUrl = fileDownloadUrl
             };
         }
         catch (Exception ex)
@@ -128,7 +127,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 JobModelId = conversionRequest.JobModelId,
                 TrimbleConnectModelId = conversionRequest.TrimbleConnectModelId,
                 IsConversionSuccessful = false,
-                ProcessingErrorMessage = $"{errorMessage}: {ex.Message}"
+                ErrorMessage = $"{errorMessage}: {ex.Message}"
             };
         }
     }
@@ -144,7 +143,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
         {
             TrimbleConnectModelId = request.TrimbleConnectModelId,
             IsConversionSuccessful = false,
-            ProcessingErrorMessage = errorMessage
+            ErrorMessage = errorMessage
         };
     }
 

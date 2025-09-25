@@ -12,6 +12,10 @@
         public string ModelVersionId { get; set; }
         public string SpaceId { get; set; }
         public string FolderId { get; set; }
+        /// <summary>
+        /// The identifier of the customer who owns this model
+        /// </summary>
+        public string CustomerId { get; set; }
         public string NotificationGroupId { get; set; }
         /// <summary>
         /// The decrypted access token used to authenticate with Trimble Connect

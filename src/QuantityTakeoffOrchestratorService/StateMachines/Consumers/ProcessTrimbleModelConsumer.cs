@@ -1,10 +1,6 @@
 using MassTransit;
-using Microsoft.AspNetCore.SignalR;
 using NewRelic.Api.Agent;
-using QuantityTakeoffOrchestratorService.Models;
-using QuantityTakeoffOrchestratorService.Models.Enums;
 using QuantityTakeoffOrchestratorService.Models.Request;
-using QuantityTakeoffOrchestratorService.NotificationHubs;
 using QuantityTakeoffOrchestratorService.Processors.Interfaces;
 using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffService.MassTransitContracts;
@@ -76,7 +72,7 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
             }
             else
             {
-                await HandleFailedConversion(context, result.ProcessingErrorMessage);
+                await HandleFailedConversion(context, result.ErrorMessage);
             }
         }
         catch (Exception ex)
@@ -106,6 +102,7 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
             ModelVersionId = message.ModelVersionId,
             SpaceId = message.SpaceId,
             FolderId = message.FolderId,
+            CustomerId = message.CustomerId,
             NotificationGroupId = message.NotificationGroupId,
             UserAccessToken = accessToken
         };
@@ -127,7 +124,7 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
             context.Message.TrimbleConnectModelId,
             context.Message.CorrelationId,
             context.Message.CustomerId,
-            result.FileDownloadUrl,
+            result.ModelFileDownloadUrl,
             ProcessingCompletedOnUtc = DateTime.UtcNow,
         });
     }
@@ -147,7 +144,7 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
             context.Message.TrimbleConnectModelId,
             context.Message.CorrelationId,
             context.Message.CustomerId,
-            Message = errorMessage,
+            ErrorMessage = errorMessage,
             ProcessingCompletedOnUtc = DateTime.UtcNow
         });
     }

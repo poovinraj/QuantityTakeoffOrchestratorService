@@ -11,10 +11,13 @@ namespace QuantityTakeoffOrchestratorService.Models.Domain
     public class ModelMetaDataDomain
     {
         /// <summary>
-        /// The identifier of the original model file in Trimble Connect.
         /// Used as the primary key (MongoDB document ID) for this metadata record.
         /// </summary>
         [BsonId]
+        public string Id { get; set; }
+        /// <summary>
+        /// The identifier of the original model file in Trimble Connect.
+        /// </summary>
         public string ConnectFileId { get; set; }
         /// <summary>
         /// Collection of property set definitions found in this model.

@@ -5,30 +5,29 @@ using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
 
 namespace QuantityTakeoffOrchestratorService.Repositories
 {
+    /// <summary>
+    /// This repository handles persistence of model-related information
+    /// such as property set definitions, and file references.
+    /// </summary>
     public class ModelMetaDataRepository : IModelMetaDataRepository
     {
         private const string ModelMetaDataCollectionName = "ModelMetaData";
         private IMongoCollection<ModelMetaDataDomain> _collection;
 
         /// <summary>
-        /// ModelMetaDataRepository constructor.
+        /// Initializes a new instance of the <see cref="ModelMetaDataRepository"/> class.
         /// </summary>
-        /// <param name="mongoDbService"></param>
+        /// <param name="mongoDbService">Service providing access to MongoDB database</param>
         public ModelMetaDataRepository(IMongoDbService mongoDbService)
         {
             _collection = mongoDbService.Database.GetCollection<ModelMetaDataDomain>(ModelMetaDataCollectionName);
         }
 
-        /// <summary>
-        ///     Updates the file ID and PSet definitions for a specific connect file identifier.
-        /// </summary>
-        /// <param name="connectFileId"></param>
-        /// <param name="fileId"></param>
-        /// <param name="pSetDefinitions"></param>
-        /// <returns></returns>
-        public async Task<bool> UpdateFileIdAndPSetDefinitionsForConnectModel(string connectFileId, string fileId, IEnumerable<PSetDefinition> pSetDefinitions)
+        /// <inheritdoc/>
+        public async Task<bool> UpdateFileIdAndPSetDefinitionsForConnectModel(string connectFileId, string fileId, IEnumerable<PSetDefinition> pSetDefinitions, string customerId)
         {
-            var filter = Builders<ModelMetaDataDomain>.Filter.Eq(x => x.ConnectFileId, connectFileId);
+            var filter = Builders<ModelMetaDataDomain>.Filter.Eq(x => x.ConnectFileId, connectFileId) &
+                         Builders<ModelMetaDataDomain>.Filter.Eq(x => x.Metadata.CustomerId, customerId);
             var update = Builders<ModelMetaDataDomain>.Update
                 .Set(x => x.FileId, fileId)
                 .Set(x => x.PSetDefinitions, pSetDefinitions)

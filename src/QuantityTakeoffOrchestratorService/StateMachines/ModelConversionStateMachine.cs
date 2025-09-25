@@ -81,7 +81,7 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
         // Configure initial state transition
         Initially(
             When(ModelConversionStarted)
-                .Then(context =>
+                .Then(async context =>
                 {
                     context.Saga.JobId = context.Message.JobId;
                     context.Saga.JobModelId = context.Message.JobModelId;
@@ -90,6 +90,27 @@ public class ModelConversionStateMachine : MassTransitStateMachine<ModelConversi
                     context.Saga.CustomerId = context.Message.CustomerId;
                     context.Saga.NotificationGroupId = context.Message.NotificationGroupId;
                     context.Saga.EventReceivedOn = DateTime.UtcNow;
+
+                    // Log conversion start with correlation ID for tracing
+                    Log.ForContext("CorrelationId", context.Saga.CorrelationId)
+                       .Information(
+                          "Model conversion started: State=Initial→Converting, JobId={JobId}, JobModelId={JobModelId}, TrimbleConnectModelId={TrimbleConnectModelId}",
+                          context.Saga.JobId,
+                          context.Saga.JobModelId,
+                          context.Saga.TrimbleConnectModelId);
+
+                    // Send notification to the group with minimal necessary information
+                    if (!string.IsNullOrEmpty(context.Saga.NotificationGroupId))
+                    {
+                        await _hubContext.Clients.Group(context.Saga.NotificationGroupId)
+                            .SendAsync("ModelConversionStarted",
+                                new
+                                {
+                                    context.Saga.JobModelId,
+                                    context.Saga.TrimbleConnectModelId,
+                                    StartedOn = context.Saga.EventReceivedOn
+                                });
+                    }
                 })
                 .TransitionTo(Converting));
 

@@ -4,29 +4,27 @@ using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
 
 namespace QuantityTakeoffOrchestratorService.Processors
 {
+    /// <summary>
+    /// This processor serves as a bridge between the model conversion workflow and the data storage layer,
+    /// handling updates to model metadata after conversion processes complete.
+    /// </summary>
     public class ModelMetaDataProcessor : IModelMetaDataProcessor
     {
         private readonly IModelMetaDataRepository _modelMetaDataRepository;
 
         /// <summary>
-        /// ModelMetaDataProcessor constructor.
+        /// Initializes a new instance of the <see cref="ModelMetaDataProcessor"/> class.
         /// </summary>
-        /// <param name="modelMetaDataRepository"></param>
+        /// <param name="modelMetaDataRepository">Repository for persisting model metadata</param>
         public ModelMetaDataProcessor(IModelMetaDataRepository modelMetaDataRepository)
         {
             _modelMetaDataRepository = modelMetaDataRepository;
         }
 
-        /// <summary>
-        /// Updates the metadata of a model by its connection file ID, replacing existing definitions with new unique properties.
-        /// </summary>
-        /// <param name="connectFileId"></param>
-        /// <param name="uniqueProperties"></param>
-        /// <param name="fileId"></param>
-        /// <returns></returns>
-        public async Task<bool> UpdateFileIdAndPSetDefinitionsForConnectModel(string connectFileId, string fileId, IEnumerable<PSetDefinition> uniqueProperties)
+        /// <inheritdoc/>
+        public async Task<bool> UpdateFileIdAndPSetDefinitionsForConnectModel(string connectFileId, string fileId, IEnumerable<PSetDefinition> pSetDefinitions, string customerId)
         {
-            return await _modelMetaDataRepository.UpdateFileIdAndPSetDefinitionsForConnectModel(connectFileId, fileId, uniqueProperties);
+            return await _modelMetaDataRepository.UpdateFileIdAndPSetDefinitionsForConnectModel(connectFileId, fileId, pSetDefinitions, customerId);
         }
     }
 }
