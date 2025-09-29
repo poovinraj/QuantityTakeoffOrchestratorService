@@ -37,7 +37,7 @@ public interface IProcessTrimBimModel
     /// The specific version of the model to be processed, allowing for tracking model
     /// changes over time while maintaining version history.
     /// </summary>
-    string ModelVersionId { get; }
+    string ModelVersionId { get; set; }
 
     /// <summary>
     /// Unique identifier used to correlate this processing request with its corresponding 
@@ -50,24 +50,24 @@ public interface IProcessTrimBimModel
     /// This enables proper message routing and provides a consistent identifier for logging, 
     /// troubleshooting and monitoring the asynchronous processing workflow.
     /// </remarks>
-    public Guid CorrelationId { get; }
+    public Guid CorrelationId { get; set; }
 
     /// <summary>
     /// The identifier of the customer who owns this model
     /// </summary>
-    public string CustomerId { get; }
+    public string CustomerId { get; set; }
 
     /// <summary>
     /// The identifier of the storage space in Trimble File Service where the processed model
     /// will be stored.
     /// </summary>
-    public string SpaceId { get; }
+    public string SpaceId { get; set; }
 
     /// <summary>
     /// The identifier of the folder within the storage space where the processed model
     /// will be stored.
     /// </summary>
-    public string FolderId { get; }
+    public string FolderId { get; set; }
 
     /// <summary>
     /// The name of the user who initiated the model processing request
