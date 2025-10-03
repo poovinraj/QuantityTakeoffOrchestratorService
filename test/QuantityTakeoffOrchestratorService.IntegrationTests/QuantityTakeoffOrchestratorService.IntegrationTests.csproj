@@ -38,7 +38,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Collections\" />
     <Folder Include="Controllers\" />
+    <Folder Include="Fixtures\" />
     <Folder Include="TestCases\StudentController\" />
   </ItemGroup>
 

@@ -21,9 +21,11 @@ public class QuantityTakeoffOrchestratorHub : Hub
             string userId = Context.GetHttpContext().Request.Query["userId"]!;
             string transactionId = Context.GetHttpContext().Request.Query["transactionId"]!;
 
-            var group = string.Concat(userId, "_", transactionId);
-            
-            await Groups.AddToGroupAsync(Context.ConnectionId, group);
+            if (!string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(transactionId))
+            {
+                var group = string.Concat(userId, "_", transactionId);
+                await Groups.AddToGroupAsync(Context.ConnectionId, group);
+            }
         }
         catch (Exception ex)
         {
@@ -48,9 +50,11 @@ public class QuantityTakeoffOrchestratorHub : Hub
             string userId = Context.GetHttpContext().Request.Query["userId"]!;
             string transactionId = Context.GetHttpContext().Request.Query["transactionId"]!;
 
-            var group = string.Concat(userId, "_", transactionId);
-
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, group);
+            if (!string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(transactionId))
+            {
+                var group = string.Concat(userId, "_", transactionId);
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, group);
+            }
         }
         catch (Exception ex)
         {
