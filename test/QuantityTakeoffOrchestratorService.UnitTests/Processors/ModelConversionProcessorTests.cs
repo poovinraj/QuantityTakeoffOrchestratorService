@@ -387,6 +387,40 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
             }
         }
 
+        [Theory]
+        [InlineData(null, "", "")]
+        [InlineData("", "", "")]
+        [InlineData("   ", "", "")]
+        [InlineData("IFCBeam", "IFC", "Beam")]
+        [InlineData("DGNWall", "DGN", "Wall")]
+        [InlineData("ACPipe", "DWG", "Pipe")]
+        [InlineData("AECDoor", "DWG", "Door")]
+        [InlineData("SomethingElse", "Invalid", "Invalid")]
+        public void GetFileFormatAndCommonType_WithDifferentClassNames_ReturnsCorrectValues(
+            string className, string expectedFormat, string expectedType)
+        {
+            // Arrange
+            // Use reflection to access the private method
+            var methodInfo = typeof(ModelConversionProcessor).GetMethod(
+                "GetFileFormatAndCommonType", 
+                BindingFlags.NonPublic | BindingFlags.Instance);
+
+            // Create a testable processor to use for invoking the method
+            var testProcessor = new TestableModelConversionProcessor(
+                _mockConnectClient,
+                _mockTrimbleFileService,
+                _mockLogger,
+                _mockHubContext,
+                _mockModelMetaDataProcessor);
+
+            // Act - Invoke the method through the test processor
+            var result = testProcessor.TestGetFileFormatAndCommonType(className);
+
+            // Assert
+            result.Item1.Should().Be(expectedFormat);
+            result.Item2.Should().Be(expectedType);
+        }
+
         /// <summary>
         /// Creates a mock model for testing property definitions
         /// </summary>
@@ -438,6 +472,15 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
                 var method = typeof(ModelConversionProcessor).GetMethod("Generate3DTakeoffElementsJson",
                     BindingFlags.NonPublic | BindingFlags.Instance);
                 return (string)method.Invoke(this, new object[] { modelId, model });
+            }
+
+            public (string, string) TestGetFileFormatAndCommonType(string className)
+            {
+                // Use reflection to call the private GetFileFormatAndCommonType method
+                var method = typeof(ModelConversionProcessor).GetMethod("GetFileFormatAndCommonType",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+
+                return ((string, string))method.Invoke(this, new object[] { className });
             }
         }
     }
