@@ -26,10 +26,12 @@ using Mep.Platform.Extensions.Monitoring;
 using Mep.Platform.Extensions.Monitoring.Serilog;
 using Mep.Platform.Extensions.Serilog;
 using Mep.Platform.Extensions.Swashbuckle.FluentValidation;
+using Mep.Platform.Extensions.TestContainers;
 using Mep.Platform.FeatureFlags.Sdk.Extensions;
 using QuantityTakeoffOrchestratorService.Extensions;
 using QuantityTakeoffOrchestratorService.Models.Configurations;
 using QuantityTakeoffOrchestratorService.Models.Mapping;
+using QuantityTakeoffOrchestratorService.Services;
 
 var builder = WebApplication.CreateBuilder(args)
     .UsePlatformAzureAppConfiguration(x =>
@@ -71,8 +73,8 @@ var builder = WebApplication.CreateBuilder(args)
     //.AddSwaggerGenWithUiBearerToken()
     .AddFluentValidationToSwagger()
     .UsePlatformHealthCheck()
-    .UsePlatformMonitoring();
-    //.UseContainers<DockerService>();
+    .UsePlatformMonitoring()
+    .UseContainers<DockerService>();
 
 var app = builder.Build();
 app
