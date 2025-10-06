@@ -2,13 +2,18 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using QuantityTakeoffOrchestratorService.Models.Constants;
 using QuantityTakeoffOrchestratorService.Models.Domain;
+using QuantityTakeoffOrchestratorService.Models.Request;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
 using QuantityTakeoffOrchestratorService.Processors;
 using QuantityTakeoffOrchestratorService.Processors.Interfaces;
 using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffOrchestratorService.UnitTests.Fixtures;
+using System.Reflection;
 using System.Text;
+using System.Text.Json;
+using Trimble.Technology.TrimBim;
 using Xunit;
 
 namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
@@ -193,6 +198,247 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
 
             // Should try 3 times
             await _mockTrimbleFileService.Received(3).GetFileDownloadUrl(spaceId, fileId);
+        }
+
+        [Fact]
+        public void CreateFailureResult_ReturnsCorrectFailureResult()
+        {
+            // Arrange
+            var request = _requestFixture.ModelConversionRequest;
+            var errorMessage = "Test error message";
+
+            // Act - Invoke the private CreateFailureResult method using reflection
+            var methodInfo = typeof(ModelConversionProcessor).GetMethod("CreateFailureResult",
+                BindingFlags.NonPublic | BindingFlags.Static);
+
+            var result = methodInfo.Invoke(null, new object[] { request, errorMessage }) as Models.View.ModelProcessingResult;
+
+            // Assert
+            result.Should().NotBeNull();
+            result.TrimbleConnectModelId.Should().Be(request.TrimbleConnectModelId);
+            result.IsConversionSuccessful.Should().BeFalse();
+            result.ErrorMessage.Should().Be(errorMessage);
+            result.JobModelId.Should().BeNull(); // Not set by the CreateFailureResult method
+        }
+
+        [Fact]
+        public async Task ProcessTrimBim_WithValidModelBytes_ReturnsModel()
+        {
+            // Arrange
+            var token = "test-token";
+            var modelId = "model-id";
+            var versionId = "version-1";
+            var modelBytes = MockModelDataFixture.GetMockModelBytes();
+
+            _mockConnectClient.DownloadModelFile(token, modelId, versionId)
+                .Returns(modelBytes);
+
+            // Use a TestableModelConversionProcessor to test the private method
+            var testProcessor = new TestableModelConversionProcessor(
+                _mockConnectClient,
+                _mockTrimbleFileService,
+                _mockLogger,
+                _mockHubContext,
+                _mockModelMetaDataProcessor);
+
+            // Act
+            var result = await testProcessor.TestProcessTrimBim(token, modelId, versionId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.Entities.Should().NotBeNull();
+            result.Geometry.Should().NotBeNull();
+
+            // Verify the client method was called
+            await _mockConnectClient.Received(1).DownloadModelFile(token, modelId, versionId);
+        }
+
+        [Fact]
+        public async Task ProcessTrimBim_ParseFails_ThrowsException()
+        {
+            // Arrange
+            var token = "test-token";
+            var modelId = "model-id";
+            var versionId = "version-1";
+            var invalidModelBytes = Encoding.UTF8.GetBytes("invalid model data");
+
+            _mockConnectClient.DownloadModelFile(token, modelId, versionId)
+                .Returns(invalidModelBytes);
+
+            // Use a TestableModelConversionProcessor to test the private method
+            var testProcessor = new TestableModelConversionProcessor(
+                _mockConnectClient,
+                _mockTrimbleFileService,
+                _mockLogger,
+                _mockHubContext,
+                _mockModelMetaDataProcessor);
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<Exception>(
+                () => testProcessor.TestProcessTrimBim(token, modelId, versionId));
+
+            exception.Message.Should().Be("Failed to parse the model.");
+        }
+
+        [Fact]
+        public void Generate3DTakeoffElementsJson_WithValidModel_ReturnsJsonString()
+        {
+            // Arrange
+            var modelId = "test-model-id";
+            var mockModel = Substitute.For<IModel>();
+
+            // Setup model with minimal required properties
+            mockModel.Geometry.Returns(Substitute.For<IGeometry>());
+            mockModel.Properties.Returns(Substitute.For<IProperties>());
+            mockModel.Properties.PropertySets.Returns(Substitute.For<IPropertySets>());
+
+            // Use a TestableModelConversionProcessor to test the private method
+            var testProcessor = new TestableModelConversionProcessor(
+                _mockConnectClient,
+                _mockTrimbleFileService,
+                _mockLogger,
+                _mockHubContext,
+                _mockModelMetaDataProcessor);
+
+            // Act
+            var result = testProcessor.TestGenerate3DTakeoffElementsJson(modelId, mockModel);
+
+            // Assert
+            // Even with an empty model, we should get a valid JSON string (empty array)
+            result.Should().NotBeNullOrEmpty();
+            // Verify it's a valid JSON string
+            Action action = () => JsonDocument.Parse(result);
+            action.Should().NotThrow();
+        }
+
+        [Fact]
+        public void Generate3DTakeoffElementsJson_WithNullModel_ReturnsEmptyString()
+        {
+            // Arrange
+            var modelId = "test-model-id";
+
+            // Use a TestableModelConversionProcessor to test the private method
+            var testProcessor = new TestableModelConversionProcessor(
+                _mockConnectClient,
+                _mockTrimbleFileService,
+                _mockLogger,
+                _mockHubContext,
+                _mockModelMetaDataProcessor);
+
+            // Act
+            var result = testProcessor.TestGenerate3DTakeoffElementsJson(modelId, null);
+
+            // Assert
+            result.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void ProcessModelAndFetchUniquePropertyDefinitions_ReturnsCorrectPropertyDefinitions()
+        {
+            // Arrange - Create the real model for testing the static method
+            var mockModel = CreateMockModelForPropertyDefinitions();
+
+            // Use a TestableModelConversionProcessor to access the static private method
+            var methodInfo = typeof(ModelConversionProcessor).GetMethod(
+                "ProcessModelAndFetchUniquePropertyDefinitions",
+                BindingFlags.NonPublic | BindingFlags.Static);
+
+            // Act
+            var result = methodInfo.Invoke(null, new object[] { mockModel }) as IEnumerable<PSetDefinition>;
+
+            // Assert
+            result.Should().NotBeNull();
+            var resultList = result.ToList();
+            
+            // The result should contain properties from the model and the standard property sets
+            // Verify that additional property sets are included
+            resultList.Should().Contain(p => 
+                p.PSetName == "Reference Object" && p.PropertyType == PropertyType.StringValue);
+            resultList.Should().Contain(p => 
+                p.PSetName == "Presentation Layers" && p.PropertyType == PropertyType.StringValue);
+            resultList.Should().Contain(p => 
+                p.PSetName == "Product" && p.PropertyType == PropertyType.StringValue);
+
+            // Verify all ReferenceObjectPset properties are present
+            foreach (var propString in ReferenceObjectPset.Properties)
+            {
+                var parts = propString.Split(',');
+                resultList.Should().Contain(p =>
+                    p.PropertyName == parts[0] && 
+                    p.PSetName == "Reference Object" && 
+                    p.PropertyType == PropertyType.StringValue);
+            }
+
+            // Verify PresentationLayerPset property is present
+            var layerParts = PresentationLayerPset.Property.Split(',');
+            resultList.Should().Contain(p =>
+                p.PropertyName == layerParts[0] &&
+                p.PSetName == "Presentation Layers" &&
+                p.PropertyType == PropertyType.StringValue);
+
+            // Verify ProductPset properties are present
+            foreach (var propString in ProductPset.Properties)
+            {
+                var parts = propString.Split(',');
+                resultList.Should().Contain(p =>
+                    p.PropertyName == parts[0] &&
+                    p.PSetName == "Product" &&
+                    p.PropertyType == PropertyType.StringValue);
+            }
+        }
+
+        /// <summary>
+        /// Creates a mock model for testing property definitions
+        /// </summary>
+        private IModel CreateMockModelForPropertyDefinitions()
+        {
+            var mockModel = Substitute.For<IModel>();
+            var mockProperties = Substitute.For<IProperties>();
+            var mockPropertySets = Substitute.For<IPropertySets>();
+            
+            // Setup PropertySets fields that will be accessed in the method
+            mockPropertySets.PropertySetNames.Returns(new List<string>());
+            mockPropertySets.PropertyNames.Returns(new List<string>());
+            mockPropertySets.PropertySetDefinitions.Returns(new List<PropertySetDefinition>());
+            
+            mockProperties.PropertySets.Returns(mockPropertySets);
+            mockModel.Properties.Returns(mockProperties);
+            
+            return mockModel;
+        }
+
+        /// <summary>
+        /// Test helper class to expose protected methods for testing
+        /// </summary>
+        private class TestableModelConversionProcessor : ModelConversionProcessor
+        {
+            public TestableModelConversionProcessor(
+                IConnectClientService connectClientService,
+                ITrimbleFileService trimbleFileService,
+                ILogger<ModelConversionProcessor> logger,
+                IHubContext<QuantityTakeoffOrchestratorHub> hubContext,
+                IModelMetaDataProcessor modelMetaDataProcessor)
+                : base(connectClientService, trimbleFileService, logger, hubContext, modelMetaDataProcessor)
+            {
+            }
+
+            // Expose private method for testing
+            public Task<IModel> TestProcessTrimBim(string token, string modelId, string versionId)
+            {
+                // Use reflection to call the private ProcessTrimBim method
+                var method = typeof(ModelConversionProcessor).GetMethod("ProcessTrimBim",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+
+                return (Task<IModel>)method.Invoke(this, new object[] { token, modelId, versionId });
+            }
+
+            public string TestGenerate3DTakeoffElementsJson(string modelId, IModel model)
+            {
+                // Use reflection to call the private Generate3DTakeoffElementsJson method
+                var method = typeof(ModelConversionProcessor).GetMethod("Generate3DTakeoffElementsJson",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                return (string)method.Invoke(this, new object[] { modelId, model });
+            }
         }
     }
 }

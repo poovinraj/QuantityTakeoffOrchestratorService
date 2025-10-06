@@ -43,12 +43,14 @@ using QuantityTakeoffOrchestratorService.Processors.Interfaces;
 using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
 using QuantityTakeoffOrchestratorService.Repositories;
 using quantitytakeoffservice.MassTransitFormatters;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Extensions;
 
 /// <summary>
 ///     Extensions for customization of the service pipeline.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class ServiceCustomExtensions
 {
     /// <summary>

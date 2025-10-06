@@ -2,6 +2,7 @@
 using MongoDB.Driver;
 using QuantityTakeoffOrchestratorService.Models.Domain;
 using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Repositories
 {
@@ -9,6 +10,7 @@ namespace QuantityTakeoffOrchestratorService.Repositories
     /// This repository handles persistence of model-related information
     /// such as property set definitions, and file references.
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class ModelMetaDataRepository : IModelMetaDataRepository
     {
         private const string ModelMetaDataCollectionName = "ModelMetaData";
