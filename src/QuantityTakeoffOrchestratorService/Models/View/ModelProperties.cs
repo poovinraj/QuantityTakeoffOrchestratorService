@@ -1,4 +1,5 @@
 ﻿using MongoDB.Bson.Serialization.Attributes;
+using System.Diagnostics.CodeAnalysis;
 using Trimble.Technology.TrimBim;
 
 namespace QuantityTakeoffOrchestratorService.Models.View;
@@ -7,6 +8,7 @@ namespace QuantityTakeoffOrchestratorService.Models.View;
 /// Represents a property of a model element with its key, value, and type information.
 /// </summary>
 [BsonIgnoreExtraElements]
+[ExcludeFromCodeCoverage]
 public class ModelProperties
 {
     /// <summary>

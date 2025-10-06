@@ -1,5 +1,6 @@
-﻿using QuantityTakeoffOrchestratorService.Models.View;
+﻿using QuantityTakeoffOrchestratorService.Enums;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Models.Mapping;
 
@@ -9,6 +10,7 @@ namespace QuantityTakeoffOrchestratorService.Models.Mapping;
 /// into categorized item types that can be consistently processed, displayed, and quantified in the
 /// takeoff system regardless of the source model format or classification system.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class Model3DItemTypesMapper
 {
     /// <summary>

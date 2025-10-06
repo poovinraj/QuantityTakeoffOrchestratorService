@@ -274,7 +274,7 @@
 //                .Returns(decryptedAesKey);
             
 //            _mockAesEncryptionService
-//                .Decrypt(Arg.Any<byte[]>(), Arg.Is<byte[]>(key => key == decryptedAesKey))
+//                .Decrypt(Arg.Any<byte[]>(), Arg.Any<byte[]>())
 //                .Returns(decryptedToken);
 //        }
 

@@ -1,5 +1,6 @@
 ﻿using MassTransit;
 using MongoDB.Bson.Serialization.Attributes;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.StateMachines;
 
@@ -13,6 +14,7 @@ namespace QuantityTakeoffOrchestratorService.StateMachines;
 /// orchestration to maintain state through system restarts or failures. It provides the necessary
 /// data for real-time client notifications through SignalR and for tracking conversion metrics.
 /// </remarks>
+[ExcludeFromCodeCoverage]
 public class ModelConversionState : SagaStateMachineInstance, ISagaVersion
 {
     /// <summary>

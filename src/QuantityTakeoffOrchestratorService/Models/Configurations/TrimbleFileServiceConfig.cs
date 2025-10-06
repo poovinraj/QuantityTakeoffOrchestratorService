@@ -1,10 +1,13 @@
-﻿namespace QuantityTakeoffOrchestratorService.Models.Configurations;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace QuantityTakeoffOrchestratorService.Models.Configurations;
 
 /// <summary>
 /// Configuration settings for integrating with the Trimble File Service, which is used to
 /// store and retrieve processed model files. This configuration enables the orchestration service
 /// to upload converted BIM models, manage file access, and generate download URLs for clients.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class TrimbleFileServiceConfig
 {
     /// <summary>

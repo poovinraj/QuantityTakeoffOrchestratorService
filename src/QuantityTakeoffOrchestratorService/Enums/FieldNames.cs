@@ -1,4 +1,4 @@
-﻿namespace QuantityTakeoffOrchestratorService.Models.View;
+﻿namespace QuantityTakeoffOrchestratorService.Enums;
 
 /// <summary>
 /// Defines standard field names used for serialization and deserialization of quantity takeoff elements.

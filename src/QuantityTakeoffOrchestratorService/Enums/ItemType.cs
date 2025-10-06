@@ -1,4 +1,4 @@
-﻿namespace QuantityTakeoffOrchestratorService.Models.View;
+﻿namespace QuantityTakeoffOrchestratorService.Enums;
 
 /// <summary>
 /// Classification of BIM model elements by their architectural or structural function.

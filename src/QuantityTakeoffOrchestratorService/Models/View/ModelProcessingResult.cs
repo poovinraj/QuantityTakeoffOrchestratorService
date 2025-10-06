@@ -1,7 +1,8 @@
-﻿using QuantityTakeoffOrchestratorService.Models.Domain;
+﻿using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Models.View;
 
+[ExcludeFromCodeCoverage]
 public class ModelProcessingResult
 {
     /// <summary>

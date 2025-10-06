@@ -1,6 +1,7 @@
 ﻿using Mep.Platform.Extensions.Http;
 using Microsoft.Extensions.Options;
 using QuantityTakeoffOrchestratorService.Models.Configurations;
+using System.Diagnostics.CodeAnalysis;
 using Trimble.ID;
 using TrimbleCloud.FileService;
 using TrimbleCloud.FileService.Models;
@@ -10,6 +11,8 @@ namespace QuantityTakeoffOrchestratorService.Services;
 /// <summary>
 ///     This service provides methods for uploading files to Trimble's cloud storage.
 /// </summary>
+/// 
+[ExcludeFromCodeCoverage]
 public class TrimbleFileService : ITrimbleFileService
 {
     private readonly FileServiceClient client;

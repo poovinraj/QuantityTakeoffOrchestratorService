@@ -2,6 +2,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using NewRelic.Api.Agent;
+using QuantityTakeoffOrchestratorService.Enums;
 using QuantityTakeoffOrchestratorService.Helpers;
 using QuantityTakeoffOrchestratorService.Models.Constants;
 using QuantityTakeoffOrchestratorService.Models.Domain;

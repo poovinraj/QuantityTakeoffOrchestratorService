@@ -1,8 +1,10 @@
 ﻿using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Models.Domain
 {
+    [ExcludeFromCodeCoverage]
     public class Metadata
     {
         [BsonRepresentation(BsonType.DateTime)]

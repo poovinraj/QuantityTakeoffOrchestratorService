@@ -1,10 +1,13 @@
-﻿namespace QuantityTakeoffOrchestratorService.Models.Request
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace QuantityTakeoffOrchestratorService.Models.Request
 {
     /// <summary>
     /// Encapsulates the parameters required for a BIM model conversion operation.
     /// This request model contains all necessary identifiers and credentials to locate,
     /// access, process, and store a model from Trimble Connect into the quantity takeoff format.
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class ModelConversionRequest
     {
         public string JobModelId { get; set; }

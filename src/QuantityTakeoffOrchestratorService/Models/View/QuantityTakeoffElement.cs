@@ -1,5 +1,6 @@
 ﻿using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using QuantityTakeoffOrchestratorService.Enums;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 

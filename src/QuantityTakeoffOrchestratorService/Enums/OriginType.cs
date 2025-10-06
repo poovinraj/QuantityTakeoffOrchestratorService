@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel;
 
-namespace QuantityTakeoffOrchestratorService.Models.View;
+namespace QuantityTakeoffOrchestratorService.Enums;
 
 /// <summary>
 /// Defines the source or origin of a quantity takeoff element in the system.

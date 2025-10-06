@@ -1,8 +1,11 @@
-﻿namespace QuantityTakeoffOrchestratorService.Models.Constants;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace QuantityTakeoffOrchestratorService.Models.Constants;
 
 /// <summary>
 /// Defines standard properties related to BIM model reference objects.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class ReferenceObjectPset
 {
     /// <summary>

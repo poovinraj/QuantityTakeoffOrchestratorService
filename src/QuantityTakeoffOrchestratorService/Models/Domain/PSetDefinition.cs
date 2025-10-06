@@ -1,4 +1,5 @@
 ﻿using MongoDB.Bson.Serialization.Attributes;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using Trimble.Technology.TrimBim;
 
@@ -7,6 +8,7 @@ namespace QuantityTakeoffOrchestratorService.Models.Domain
     /// <summary>
     /// Represents a property set definition used to identify and describe properties in models.
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class PSetDefinition
     {
         /// <summary>

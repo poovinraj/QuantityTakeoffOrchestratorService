@@ -1,4 +1,5 @@
 ﻿using MongoDB.Bson.Serialization.Attributes;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Models.Domain
 {
@@ -8,6 +9,7 @@ namespace QuantityTakeoffOrchestratorService.Models.Domain
     /// including its property definitions, file references, and tracking information.
     /// It serves as the primary data structure for model information persistence in MongoDB.
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class ModelMetaDataDomain
     {
         /// <summary>

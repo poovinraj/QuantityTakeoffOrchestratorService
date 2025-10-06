@@ -1,4 +1,6 @@
-﻿namespace QuantityTakeoffOrchestratorService.Models.View;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace QuantityTakeoffOrchestratorService.Models.View;
 
 
 /// <summary>
@@ -6,6 +8,7 @@
 /// corresponding entity in the source 3D model. This enables highlighting, 
 /// selection, and cross-referencing between the takeoff system and the Connect viewer.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class Model3DItemIdIndex
 {
     /// <summary>

@@ -16,12 +16,14 @@
 // Trimble Inc.
 
 using AutoMapper;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Models.Mapping;
 
 /// <summary>
 ///     The AutoMapper profile for this service.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class MapperProfile : Profile
 {
     /// <summary>

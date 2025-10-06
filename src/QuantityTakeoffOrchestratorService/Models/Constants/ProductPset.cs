@@ -1,8 +1,10 @@
-﻿namespace QuantityTakeoffOrchestratorService.Models.Constants;
+﻿using System.Diagnostics.CodeAnalysis;
+namespace QuantityTakeoffOrchestratorService.Models.Constants;
 
 /// <summary>
 /// Defines standard properties related to BIM model product information.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class ProductPset
 {
     /// <summary>
