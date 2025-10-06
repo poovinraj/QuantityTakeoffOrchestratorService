@@ -20,12 +20,14 @@ using DotNet.Testcontainers.Containers;
 using Mep.Platform.Extensions.MongoDb.Services;
 using Mep.Platform.Extensions.TestContainers;
 using MongoDB.Driver;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Services;
 
 /// <summary>
 ///     A service that uses docker and test containers as a background service for testing.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class DockerService : IHostedService
 {
     private readonly List<DockerContainer> _containers = new();

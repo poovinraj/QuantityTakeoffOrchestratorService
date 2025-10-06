@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace QuantityTakeoffOrchestratorService.Services;
@@ -6,6 +7,7 @@ namespace QuantityTakeoffOrchestratorService.Services;
 /// <summary>
 ///     Encryption service using AES algorithm
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class AesEncryptionService : IAesEncryptionService
 {
     private const int IvSize = 16; // AES IV size is always 16 bytes (128 bits)

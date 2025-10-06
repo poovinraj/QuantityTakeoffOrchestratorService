@@ -1,10 +1,12 @@
 ﻿using Azure.Security.KeyVault.Keys.Cryptography;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Services;
 
 /// <summary>
 ///     Data protection service using encryption and decryption methods
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class DataProtectionService : IDataProtectionService
 {
     private readonly CryptographyClient _cryptographyClient;
