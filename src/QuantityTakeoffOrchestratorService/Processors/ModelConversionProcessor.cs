@@ -69,6 +69,8 @@ public class ModelConversionProcessor : IModelConversionProcessor
             });
 
             // Step 1: Download and parse the BIM model
+            _logger.LogInformation("Starting model download and parsing for ModelReferenceId: {ModelReferenceId}",
+                conversionRequest.TrimbleConnectModelId);
             var model = await ProcessTrimBim(
                 conversionRequest.UserAccessToken,
                 conversionRequest.TrimbleConnectModelId,
@@ -76,15 +78,21 @@ public class ModelConversionProcessor : IModelConversionProcessor
 
             if (model is null)
             {
+                _logger.LogError("Model is null after processing for ModelReferenceId: {ModelReferenceId}",
+                    conversionRequest.TrimbleConnectModelId);
                 return CreateFailureResult(conversionRequest, "Model is null after processing.");
             }
 
             // Step 2: Extract elements and create JSON
+            _logger.LogInformation("Generating takeoff elements JSON for ModelReferenceId: {ModelReferenceId}",
+                conversionRequest.TrimbleConnectModelId);
             var takeoffElementsJson = Generate3DTakeoffElementsJson(
                 conversionRequest.TrimbleConnectModelId,
                 model);
 
             // Step 3: Upload processed model to file service
+            _logger.LogInformation("Uploading takeoff elements to file service for ModelReferenceId: {ModelReferenceId}",
+                conversionRequest.TrimbleConnectModelId);
             var fileId = await UploadToConnectFileService(
                 conversionRequest.SpaceId,
                 conversionRequest.FolderId,
@@ -102,7 +110,8 @@ public class ModelConversionProcessor : IModelConversionProcessor
             var fileDownloadUrl = await fileDownloadUrlTask;
 
             // Step 4: Update model metadata in the database
-
+            _logger.LogInformation("Updating model metadata for ModelReferenceId: {ModelReferenceId}",
+                conversionRequest.TrimbleConnectModelId);
             await _modelMetaDataProcessor.UpdateFileIdAndPSetDefinitionsForConnectModel(
                 conversionRequest.TrimbleConnectModelId,
                 fileId,
@@ -550,41 +559,41 @@ public class ModelConversionProcessor : IModelConversionProcessor
     /// <returns cref="PSetDefinition">A collection of all the unique properties in the model.</returns>
     [Trace]
     private static IEnumerable<PSetDefinition> ProcessModelAndFetchUniquePropertyDefinitions(IModel model)
-    {
-        var modelProperties = model.Properties.PropertySets.PropertySetDefinitions.SelectMany(
-            pSet =>
-            {
-                var psetName = model.Properties.PropertySets.PropertySetNames[(int)pSet.NameId];
-                return pSet.Properties.Select(propertyDefinition =>
-                {
-                    var propertyName = model.Properties.PropertySets.PropertyNames[(int)propertyDefinition.PropertyNameId];
-                    return new PSetDefinition
-                    {
-                        PropertyName = propertyName,
-                        PSetName = psetName,
-                        PropertyType = propertyDefinition.Type
-                    };
-                });
-
-            }
-        ).DistinctBy(x => $"{x.PSetName}{x.PropertyName}");
-
-        var additionalProperties = ReferenceObjectPset.Properties
-        .Concat([PresentationLayerPset.Property])
-        .Concat(ProductPset.Properties)
-        .Select(propertyString =>
         {
-            var propArray = propertyString.Split(',');
-            return new PSetDefinition()
-            {
-                PropertyName = propArray[0],
-                PSetName = propArray[1],
-                PropertyType = PropertyType.StringValue
-            };
-        });
+            var modelProperties = model.Properties.PropertySets.PropertySetDefinitions.SelectMany(
+                pSet =>
+                {
+                    var psetName = model.Properties.PropertySets.PropertySetNames[(int)pSet.NameId];
+                    return pSet.Properties.Select(propertyDefinition =>
+                    {
+                        var propertyName = model.Properties.PropertySets.PropertyNames[(int)propertyDefinition.PropertyNameId];
+                        return new PSetDefinition
+                        {
+                            PropertyName = propertyName,
+                            PSetName = psetName,
+                            PropertyType = propertyDefinition.Type
+                        };
+                    });
 
-        return modelProperties.Concat(additionalProperties);
-    }
+                }
+            ).DistinctBy(x => $"{x.PSetName}{x.PropertyName}");
+
+            var additionalProperties = ReferenceObjectPset.Properties
+            .Concat([PresentationLayerPset.Property])
+            .Concat(ProductPset.Properties)
+            .Select(propertyString =>
+            {
+                var propArray = propertyString.Split(',');
+                return new PSetDefinition()
+                {
+                    PropertyName = propArray[0],
+                    PSetName = propArray[1],
+                    PropertyType = PropertyType.StringValue
+                };
+            });
+
+            return modelProperties.Concat(additionalProperties);
+        }
 
     /// <inheritdoc/>
     [Trace]
