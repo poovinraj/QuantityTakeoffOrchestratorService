@@ -1,8 +1,11 @@
-﻿namespace QuantityTakeoffOrchestratorService.Models.Constants;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace QuantityTakeoffOrchestratorService.Models.Constants;
 
 /// <summary>
-/// Presentation Layer Property Set Property
+/// Defines properties related to the presentation layer information in BIM models.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class PresentationLayerPset
 {
     public const string PSetName = "Presentation Layers";

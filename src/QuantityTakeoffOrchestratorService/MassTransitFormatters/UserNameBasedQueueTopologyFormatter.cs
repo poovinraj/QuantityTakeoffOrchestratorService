@@ -1,10 +1,11 @@
 ﻿using MassTransit;
 using System.Diagnostics.CodeAnalysis;
 
-namespace QuantityTakeoffOrchestratorService.MassTransitFormatters;
+namespace quantitytakeoffservice.MassTransitFormatters;
 
 /// <summary>
-///     Name formatter for queues
+///     Name formatter for queues that prefixes queue names with the current Windows username.
+///     Primarily used in development environments to isolate queues between developers.
 /// </summary>
 [ExcludeFromCodeCoverage]
 public class UserNameBasedQueueTopologyFormatter : KebabCaseEndpointNameFormatter
@@ -14,18 +15,5 @@ public class UserNameBasedQueueTopologyFormatter : KebabCaseEndpointNameFormatte
     /// <inheritdoc />
     public UserNameBasedQueueTopologyFormatter() : base(UserName, false)
     {
-    }
-
-    /// <summary>
-    ///     the queue result name of this function will specify the queue name to be used by the consumer
-    ///     queue: is needed to be specify as its used within new Uri() syntax to specify the address
-    /// </summary>
-    /// <param name="queueName"></param>
-    /// <returns>formatted queue name</returns>
-    public string GetUserBasedActivityQueueName(string queueName)
-    {
-        var userBasedQueueName = $"queue:{UserName}-{queueName}";
-        var formatResult = $"{base.SanitizeName(userBasedQueueName)}_execute";
-        return formatResult;
     }
 }

@@ -20,36 +20,37 @@ using MassTransit;
 using Mep.Platform.Authorization.Middleware.Enums;
 using Mep.Platform.Authorization.Middleware.Extensions;
 using Mep.Platform.Authorization.Middleware.Options;
-using Mep.Platform.Extensions.Http;
-using Mep.Platform.Extensions.MongoDb.Services;
 using Mep.Platform.Models.Settings.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Azure.SignalR;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Conventions;
 using QuantityTakeoffService.MassTransitContracts;
-using QuantityTakeoffOrchestratorService.MassTransitFormatters;
 using QuantityTakeoffOrchestratorService.Models.Configurations;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
 using QuantityTakeoffOrchestratorService.StateMachines;
 using QuantityTakeoffOrchestratorService.StateMachines.Consumers;
 using System.Configuration;
 using System.Diagnostics;
-using System.Security.Claims;
 using System.Text.Json.Serialization;
 using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffOrchestratorService.Processors;
 using Microsoft.Extensions.Azure;
 using Azure.Identity;
+using QuantityTakeoffOrchestratorService.Processors.Interfaces;
+using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
+using QuantityTakeoffOrchestratorService.Repositories;
+using quantitytakeoffservice.MassTransitFormatters;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Extensions;
 
 /// <summary>
 ///     Extensions for customization of the service pipeline.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class ServiceCustomExtensions
 {
     /// <summary>
@@ -184,6 +185,8 @@ public static class ServiceCustomExtensions
         webApplicationBuilder.Services.TryAddScoped<IModelConversionProcessor, ModelConversionProcessor>();
         webApplicationBuilder.Services.TryAddScoped<ITrimbleFileService, TrimbleFileService>();
         webApplicationBuilder.Services.TryAddScoped<IConnectClientService, ConnectClientService>();
+        webApplicationBuilder.Services.TryAddScoped<IModelMetaDataProcessor, ModelMetaDataProcessor>();
+        webApplicationBuilder.Services.TryAddScoped<IModelMetaDataRepository, ModelMetaDataRepository>();
         webApplicationBuilder.Services.AddHttpClient("httpClient");
 
         webApplicationBuilder.Services.AddAzureClients(clientBuilder =>
@@ -252,12 +255,12 @@ public static class ServiceCustomExtensions
             throw new ConfigurationErrorsException("MongoDbSettings section is not configured properly.");
         }
 
-        //mass transit queue name formatter for Azure Service Bus localhost development
-        if (isUserNamePrefixRequired)
-        {
-            webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
-                new UserNameBasedQueueTopologyFormatter());
-        }
+        ////mass transit queue name formatter for Azure Service Bus localhost development
+        //if (isUserNamePrefixRequired)
+        //{
+        //    webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
+        //        new UserNameBasedQueueTopologyFormatter());
+        //}
 
         _ = webAppBuilder.Services.AddMassTransit(mt =>
         {
@@ -282,34 +285,30 @@ public static class ServiceCustomExtensions
                 //topics and endpoint (queues) custom formatters for Azure Service Bus localhost development
                 if (isUserNamePrefixRequired)
                 {
-                    cfg.MessageTopology.SetEntityNameFormatter(
-                        new LocalBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
+                    // configure custom endpoint name formatter to prefix the user name to the queue names
                     mt.SetEndpointNameFormatter(new UserNameBasedQueueTopologyFormatter());
 
-                    var envName = Environment.UserName;
-                    cfg.SubscriptionEndpoint<IProcessTrimbleModel>($"{envName}-{nameof(IProcessTrimbleModel)}", subscriptionConfig =>
-                    {
-                        subscriptionConfig.Rule =
-                            new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
+                    // Automatically add UserName header to all messages (for filtering)
+                    cfg.ConfigurePublish(x => x.UseExecute(c => { c.Headers.Set("UserName", Environment.UserName); }));
 
-                        subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
-                    });
+                    // set the local based topic name formatter to prefix topics with "local-"
+                    cfg.MessageTopology.SetEntityNameFormatter(
+                        new LocalBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
 
-                    cfg.SubscriptionEndpoint<IProcessTrimbleModelCompleted>($"{envName}-{nameof(IProcessTrimbleModelCompleted)}", subscriptionConfig =>
-                    {
-                        subscriptionConfig.Rule =
-                            new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
+                    var userName = Environment.UserName;
 
-                        subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
-                    });
+                    // Create filter rule based on username
+                    var rule = new CreateRuleOptions($"user-{userName}", new SqlRuleFilter($"UserName = '{userName}'"));
 
-                    cfg.SubscriptionEndpoint<IProcessTrimbleModelFailed>($"{envName}-{nameof(IProcessTrimbleModelFailed)}", subscriptionConfig =>
-                    {
-                        subscriptionConfig.Rule =
-                            new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
+                    cfg.SubscriptionEndpoint<IProcessTrimBimModel>($"{userName}-{nameof(IProcessTrimBimModel)}",
+                        subscriptionConfig =>
+                        {
+                            subscriptionConfig.Rule = rule;
+                            subscriptionConfig.ConfigureConsumer<ProcessTrimbleModelConsumer>(context);
+                        });
 
-                        subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
-                    });
+                    // Prevent auto-configuration of endpoints since we've manually configured them
+                    return;
                 }
 
                 cfg.ConfigureEndpoints(context);

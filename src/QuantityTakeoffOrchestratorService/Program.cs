@@ -18,6 +18,7 @@
 using Mep.Platform.Authorization.Middleware.Extensions;
 using Mep.Platform.Extensions.AspNetCore;
 using Mep.Platform.Extensions.AspNetCore.Exceptions;
+using Mep.Platform.Extensions.AutoMapper;
 using Mep.Platform.Extensions.Azure.AppConfiguration;
 using Mep.Platform.Extensions.FluentValidation;
 using Mep.Platform.Extensions.MongoDb;
@@ -29,6 +30,7 @@ using Mep.Platform.Extensions.TestContainers;
 using Mep.Platform.FeatureFlags.Sdk.Extensions;
 using QuantityTakeoffOrchestratorService.Extensions;
 using QuantityTakeoffOrchestratorService.Models.Configurations;
+using QuantityTakeoffOrchestratorService.Models.Mapping;
 using QuantityTakeoffOrchestratorService.Services;
 
 var builder = WebApplication.CreateBuilder(args)
@@ -40,6 +42,7 @@ var builder = WebApplication.CreateBuilder(args)
     })
     .UsePlatformSerilog()
     .ConfigureSettingsFromAssemblyTypes(true)
+    .AddAutoMapperProfile<MapperProfile>()
     .UsePlatformMongoDb()
     .ConfigureAllSettings()
     .TryAddAllServices()
@@ -52,7 +55,8 @@ var builder = WebApplication.CreateBuilder(args)
     .RunSetup(x =>
     {
         x.Services.AddControllers();
-        x.Services.AddCors(options => {
+        x.Services.AddCors(options =>
+        {
             var settingsConfiguration = x.Configuration.GetSection("Settings").Get<SettingsConfiguration>();
             options.AddPolicy("CorsPolicy",
                 builder =>
