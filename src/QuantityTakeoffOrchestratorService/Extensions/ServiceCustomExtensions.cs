@@ -15,35 +15,36 @@
 // application design, are confidential and proprietary trade secrets of
 // Trimble Inc.
 
+using Azure.Identity;
 using Azure.Messaging.ServiceBus.Administration;
 using MassTransit;
 using Mep.Platform.Authorization.Middleware.Enums;
 using Mep.Platform.Authorization.Middleware.Extensions;
 using Mep.Platform.Authorization.Middleware.Options;
+using Mep.Platform.Extensions.MongoDb.Services;
 using Mep.Platform.Models.Settings.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Azure.SignalR;
+using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Conventions;
-using QuantityTakeoffService.MassTransitContracts;
 using QuantityTakeoffOrchestratorService.Models.Configurations;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
+using QuantityTakeoffOrchestratorService.Processors;
+using QuantityTakeoffOrchestratorService.Processors.Interfaces;
+using QuantityTakeoffOrchestratorService.Repositories;
+using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
+using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffOrchestratorService.StateMachines;
 using QuantityTakeoffOrchestratorService.StateMachines.Consumers;
+using quantitytakeoffservice.MassTransitFormatters;
+using QuantityTakeoffService.MassTransitContracts;
 using System.Configuration;
 using System.Diagnostics;
-using System.Text.Json.Serialization;
-using QuantityTakeoffOrchestratorService.Services;
-using QuantityTakeoffOrchestratorService.Processors;
-using Microsoft.Extensions.Azure;
-using Azure.Identity;
-using QuantityTakeoffOrchestratorService.Processors.Interfaces;
-using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
-using QuantityTakeoffOrchestratorService.Repositories;
-using quantitytakeoffservice.MassTransitFormatters;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 
 namespace QuantityTakeoffOrchestratorService.Extensions;
 
@@ -268,13 +269,15 @@ public static class ServiceCustomExtensions
 
             mt.AddConsumer<ProcessTrimbleModelConsumer>();
 
+            var mongoDbService = webAppBuilder.Services.BuildServiceProvider().GetRequiredService<IMongoDbService>();
+            var mongoDbName = webAppBuilder.Configuration.GetSection("MongoDbSettings:DatabaseName").Value;
+            var mongoDatabase = mongoDbService.Client.GetDatabase(mongoDbName);
+
             // Add the state machine and configure its MongoDB repository
             mt.AddSagaStateMachine<ModelConversionStateMachine, ModelConversionState>()
                 .MongoDbRepository(r =>
                 {
-                    r.Connection = mongodbSettings.ConnectionString;
-                    r.DatabaseName = mongodbSettings.DatabaseName;
-                    r.CollectionName = "ModelConversionSagasState";
+                    r.DatabaseFactory(_ => mongoDatabase);
                 });
 
             // register and configure an azure service bus as a message broker
