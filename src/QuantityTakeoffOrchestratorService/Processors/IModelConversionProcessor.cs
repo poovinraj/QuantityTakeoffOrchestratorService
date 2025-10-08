@@ -1,6 +1,7 @@
-﻿using QuantityTakeoffOrchestratorService.Models.View;
+﻿
+using QuantityTakeoffOrchestratorService.Models.View;
 
-namespace QuantityTakeoffOrchestratorService.Processors.Interfaces;
+namespace QuantityTakeoffOrchestratorService.Processors;
 
 /// <summary>
 ///     Model conversion processor interface.

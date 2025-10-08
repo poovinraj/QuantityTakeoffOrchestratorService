@@ -77,4 +77,9 @@
     <_ContentIncludedByDefault Remove="Views\Service\index.cshtml" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Processors\Interfaces\" />
+    <Folder Include="Repositories\Interfaces\" />
+  </ItemGroup>
+
 </Project>

@@ -1,6 +1,4 @@
-﻿using QuantityTakeoffOrchestratorService.Models.Domain;
-
-namespace QuantityTakeoffOrchestratorService.Models.View;
+﻿namespace QuantityTakeoffOrchestratorService.Models.View;
 
 public class ProcessModelResult
 {
