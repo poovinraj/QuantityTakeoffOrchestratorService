@@ -1,15 +1,22 @@
-﻿using QuantityTakeoffOrchestratorService.Models.View;
+﻿using QuantityTakeoffOrchestratorService.Enums;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 
 namespace QuantityTakeoffOrchestratorService.Models.Mapping;
 
 /// <summary>
-/// Model3DItemTypesMapper
+/// Provides standardized mapping between BIM model element class names and quantity takeoff item types.
+/// This mapper translates technical IFC class names from the BIM model (such as "IfcBeam" or "IfcWall") 
+/// into categorized item types that can be consistently processed, displayed, and quantified in the
+/// takeoff system regardless of the source model format or classification system.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class Model3DItemTypesMapper
 {
     /// <summary>
-    /// modelItemTypesMapping
+    /// An immutable dictionary that maps standard IFC element class names to their corresponding
+    /// item types in the quantity takeoff system. Used by the model conversion processor to
+    /// categorize model elements during processing.
     /// </summary>
     public static readonly ImmutableDictionary<string, ItemType> modelItemTypesMapping = new Dictionary<string, ItemType>()
         {

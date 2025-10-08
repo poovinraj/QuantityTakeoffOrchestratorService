@@ -15,39 +15,43 @@
 // application design, are confidential and proprietary trade secrets of
 // Trimble Inc.
 
+using Azure.Identity;
 using Azure.Messaging.ServiceBus.Administration;
 using MassTransit;
 using Mep.Platform.Authorization.Middleware.Enums;
 using Mep.Platform.Authorization.Middleware.Extensions;
 using Mep.Platform.Authorization.Middleware.Options;
-using Mep.Platform.Extensions.Http;
 using Mep.Platform.Extensions.MongoDb.Services;
 using Mep.Platform.Models.Settings.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Azure.SignalR;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Conventions;
-using QuantityTakeoffService.MassTransitContracts;
-using QuantityTakeoffOrchestratorService.MassTransitFormatters;
 using QuantityTakeoffOrchestratorService.Models.Configurations;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
+using QuantityTakeoffOrchestratorService.Processors;
+using QuantityTakeoffOrchestratorService.Processors.Interfaces;
+using QuantityTakeoffOrchestratorService.Repositories;
+using QuantityTakeoffOrchestratorService.Repositories.Interfaces;
+using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffOrchestratorService.StateMachines;
 using QuantityTakeoffOrchestratorService.StateMachines.Consumers;
+using quantitytakeoffservice.MassTransitFormatters;
+using QuantityTakeoffService.MassTransitContracts;
 using System.Configuration;
 using System.Diagnostics;
-using System.Security.Claims;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
-using QuantityTakeoffOrchestratorService.Services;
-using QuantityTakeoffOrchestratorService.Processors;
 
 namespace QuantityTakeoffOrchestratorService.Extensions;
 
 /// <summary>
 ///     Extensions for customization of the service pipeline.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class ServiceCustomExtensions
 {
     /// <summary>
@@ -94,43 +98,6 @@ public static class ServiceCustomExtensions
             .AddAuthenticationSchemes(GrantType.AuthCode)
             .Build());
 
-        //simple extension to get customer policy(this get customer id only)
-        //authOptionsBuilder.AddCustomerPolicy();
-
-        //extended version
-        //When we use this policy agaist authorize it will make sure to get the customer-id and user email id
-        //like this we can add any claims as we needed
-        //authOptionsBuilder.AddCustomPolicy("Customer", () => new AuthorizationPolicyBuilder()
-        //    .RequireAuthenticatedUser()
-        //    .RequireMepClaims((mepClaims, context, requirement, _) =>
-        //    {
-        //        var customerId = context.User.Claims.GetCustomerIdClaim();
-        //        if (customerId != null)
-        //        {
-        //            context.Succeed(requirement);
-        //            return;
-        //        }
-
-        //        customerId = mepClaims?.GetCustomerIdClaim();
-        //        if (customerId == null)
-        //        {
-        //            context.Fail();
-        //            return;
-        //        }
-
-        //        context?.User.AddExtendedIdentity(customerId);
-
-        //        //add email id also
-        //        var mailId = mepClaims?.GetEmailClaims()?.FirstOrDefault()?.Value;
-        //        if (mailId != null)
-        //        {
-        //            context?.User.AddExtendedIdentity(new Claim(ClaimTypes.Email, mailId));
-        //        }
-
-        //        context?.Succeed(requirement);
-        //    })
-        //    .AddAuthenticationSchemes(GrantType.AuthCode)
-        //    .Build());
     }
 
     /// <summary>
@@ -219,7 +186,31 @@ public static class ServiceCustomExtensions
         webApplicationBuilder.Services.TryAddScoped<IModelConversionProcessor, ModelConversionProcessor>();
         webApplicationBuilder.Services.TryAddScoped<ITrimbleFileService, TrimbleFileService>();
         webApplicationBuilder.Services.TryAddScoped<IConnectClientService, ConnectClientService>();
+        webApplicationBuilder.Services.TryAddScoped<IModelMetaDataProcessor, ModelMetaDataProcessor>();
+        webApplicationBuilder.Services.TryAddScoped<IModelMetaDataRepository, ModelMetaDataRepository>();
         webApplicationBuilder.Services.AddHttpClient("httpClient");
+
+        webApplicationBuilder.Services.AddAzureClients(clientBuilder =>
+        {
+            var keyName = webApplicationBuilder.Configuration.GetSection("EncryptionVaultConfiguration:EncryptionKeyName").Value;
+            var keyVaultUri = webApplicationBuilder.Configuration.GetSection("EncryptionVaultConfiguration:EncryptionVaultUri").Value;
+            var fullKeyUri = new Uri(keyVaultUri + keyName);
+            clientBuilder.AddCryptographyClient(fullKeyUri);
+
+            var defaultAzureCredentialOptions = new DefaultAzureCredentialOptions
+            {
+                ExcludeInteractiveBrowserCredential = true,
+                ExcludeAzurePowerShellCredential = true,
+                ExcludeSharedTokenCacheCredential = true,
+                ExcludeVisualStudioCodeCredential = true,
+                ExcludeVisualStudioCredential = true,
+                ExcludeManagedIdentityCredential = true
+            };
+
+            clientBuilder.UseCredential(new DefaultAzureCredential(defaultAzureCredentialOptions));
+        });
+        webApplicationBuilder.Services.TryAddScoped<IDataProtectionService, DataProtectionService>();
+        webApplicationBuilder.Services.TryAddScoped<IAesEncryptionService, AesEncryptionService>();
 
         if (webApplicationBuilder.Environment.EnvironmentName.Equals("integration", StringComparison.InvariantCultureIgnoreCase))
         {
@@ -265,37 +256,29 @@ public static class ServiceCustomExtensions
             throw new ConfigurationErrorsException("MongoDbSettings section is not configured properly.");
         }
 
-        //mass transit queue name formatter for Azure Service Bus localhost development
-        if (isUserNamePrefixRequired)
-        {
-            webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
-                new UserNameBasedQueueTopologyFormatter());
-        }
+        ////mass transit queue name formatter for Azure Service Bus localhost development
+        //if (isUserNamePrefixRequired)
+        //{
+        //    webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
+        //        new UserNameBasedQueueTopologyFormatter());
+        //}
 
         _ = webAppBuilder.Services.AddMassTransit(mt =>
         {
-            //mt.AddActivitiesFromNamespaceContaining<CreateEstimateActivity>();
             mt.SetKebabCaseEndpointNameFormatter();
 
             mt.AddConsumer<ProcessTrimbleModelConsumer>();
 
-            //var mongoDbService = webAppBuilder.Services.BuildServiceProvider().GetRequiredService<IMongoDbService>();
-            //var mongoDbName = webAppBuilder.Configuration.GetSection("MongoDbSettings:DatabaseName").Value;
-            //var mongoDatabase = mongoDbService.Client.GetDatabase(mongoDbName);
-
-            //// Configuring the stateMachine and the stateMachine repository (in our case mongodb repository).
-            //// A state machine defines the states, events, and behavior of a finite state machine.
-            //// A state machine is created once, and then used to apply event triggered behavior to state machine instances.
-            //_ = mt.AddSagaStateMachine<CreateEstimateStateMachine, CreateEstimateState, CreateEstimateStateMachineDefinition>()
-            //    .MongoDbRepository(r => { r.DatabaseFactory(_ => mongoDatabase); });
+            var mongoDbService = webAppBuilder.Services.BuildServiceProvider().GetRequiredService<IMongoDbService>();
+            var mongoDbName = webAppBuilder.Configuration.GetSection("MongoDbSettings:DatabaseName").Value;
+            var mongoDatabase = mongoDbService.Client.GetDatabase(mongoDbName);
 
             // Add the state machine and configure its MongoDB repository
             mt.AddSagaStateMachine<ModelConversionStateMachine, ModelConversionState>()
                 .MongoDbRepository(r =>
                 {
-                    r.Connection = mongodbSettings.ConnectionString;
-                    r.DatabaseName = mongodbSettings.DatabaseName;
-                    r.CollectionName = "ModelConversionSagasState";
+                    r.DatabaseFactory(_ => mongoDatabase);
+                    r.CollectionName = nameof(ModelConversionStateMachine);
                 });
 
             // register and configure an azure service bus as a message broker
@@ -306,44 +289,35 @@ public static class ServiceCustomExtensions
                 //topics and endpoint (queues) custom formatters for Azure Service Bus localhost development
                 if (isUserNamePrefixRequired)
                 {
-                    cfg.MessageTopology.SetEntityNameFormatter(
-                        new LocalBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
+                    // configure custom endpoint name formatter to prefix the user name to the queue names
                     mt.SetEndpointNameFormatter(new UserNameBasedQueueTopologyFormatter());
 
-                    var envName = Environment.UserName;
-                    cfg.SubscriptionEndpoint<IProcessTrimbleModel>($"{envName}-{nameof(IProcessTrimbleModel)}", subscriptionConfig =>
-                    {
-                        subscriptionConfig.Rule =
-                            new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
+                    // Automatically add UserName header to all messages (for filtering)
+                    cfg.ConfigurePublish(x => x.UseExecute(c => { c.Headers.Set("UserName", Environment.UserName); }));
 
-                        subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
-                    });
+                    // set the local based topic name formatter to prefix topics with "local-"
+                    cfg.MessageTopology.SetEntityNameFormatter(
+                        new LocalBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
 
-                    cfg.SubscriptionEndpoint<IProcessTrimbleModelCompleted>($"{envName}-{nameof(IProcessTrimbleModelCompleted)}", subscriptionConfig =>
-                    {
-                        subscriptionConfig.Rule =
-                            new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
+                    var userName = Environment.UserName;
 
-                        subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
-                    });
+                    // Create filter rule based on username
+                    var rule = new CreateRuleOptions($"user-{userName}", new SqlRuleFilter($"UserName = '{userName}'"));
 
-                    cfg.SubscriptionEndpoint<IProcessTrimbleModelFailed>($"{envName}-{nameof(IProcessTrimbleModelFailed)}", subscriptionConfig =>
-                    {
-                        subscriptionConfig.Rule =
-                            new CreateRuleOptions($"user-{envName}", new SqlRuleFilter($"UserName = '{envName}'"));
+                    cfg.SubscriptionEndpoint<IProcessTrimBimModel>($"{userName}-{nameof(IProcessTrimBimModel)}",
+                        subscriptionConfig =>
+                        {
+                            subscriptionConfig.Rule = rule;
+                            subscriptionConfig.ConfigureConsumer<ProcessTrimbleModelConsumer>(context);
+                        });
 
-                        subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
-                    });
+                    // Prevent auto-configuration of endpoints since we've manually configured them
+                    return;
                 }
 
                 cfg.ConfigureEndpoints(context);
             });
 
-            //mt.AddRequestClient<ICreateEstimate>();
-            //mt.AddRequestClient<ICreateCloseout>();
-            //mt.AddRequestClient<IDeleteEstimate>();
-            //mt.AddRequestClient<ICreateEstimateWbs>();
-            //mt.AddRequestClient<IDeleteEstimateWbs>();
         });
 
         return webAppBuilder;

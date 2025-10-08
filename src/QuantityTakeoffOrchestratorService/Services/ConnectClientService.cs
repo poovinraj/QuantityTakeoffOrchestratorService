@@ -1,11 +1,12 @@
 ﻿using Microsoft.Extensions.Options;
 using QuantityTakeoffOrchestratorService.Models.Configurations;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Net.Mime;
 using System.Text.Json;
 
 namespace QuantityTakeoffOrchestratorService.Services;
-
+[ExcludeFromCodeCoverage]
 public class ConnectClientService : IConnectClientService
 {
     private readonly HttpClient _httpClient;

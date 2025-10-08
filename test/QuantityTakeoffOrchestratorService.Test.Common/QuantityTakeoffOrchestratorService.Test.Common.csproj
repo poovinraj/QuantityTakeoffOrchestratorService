@@ -18,4 +18,9 @@
       <ProjectReference Include="..\..\src\QuantityTakeoffOrchestratorService\QuantityTakeoffOrchestratorService.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Clients\" />
+      <Folder Include="Fixtures\" />
+    </ItemGroup>
+
 </Project>

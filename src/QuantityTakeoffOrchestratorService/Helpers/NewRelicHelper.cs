@@ -4,7 +4,8 @@ using System.Diagnostics.CodeAnalysis;
 namespace QuantityTakeoffOrchestratorService.Helpers;
 
 /// <summary>
-/// This class contains helper methods for NewRelic.
+/// Provides helper methods for New Relic application performance monitoring (APM),
+/// including transaction attribute enrichment and distributed tracing support.
 /// </summary>
 [ExcludeFromCodeCoverage]
 public static class NewRelicHelper
@@ -12,10 +13,10 @@ public static class NewRelicHelper
     private static ITransaction CurrentTransaction => NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
 
     /// <summary>
-    ///     Log custom attributes to NewRelic
-    ///     Use the Trace attribute to create a trace of the parent transaction in New Relic
+    /// Enriches the current New Relic transaction with custom attributes for filtering,
+    /// searching, and analysis in the New Relic dashboard.
     /// </summary>
-    /// <param name="customAttributes">A dictionary of custom attributes to log to NewRelic.</param>
+    /// <param name="customAttributes">A dictionary of attribute name-value pairs to add to the transaction.</param>
     [Trace]
     public static void AddCustomLoggingAttributes(IDictionary<string, string?> customAttributes)
     {
@@ -26,18 +27,24 @@ public static class NewRelicHelper
     }
 
     /// <summary>
-    ///     Insert Distributed trace headers
-    ///     Use the Trace attribute to create a trace of the parent transaction in New Relic
+    /// Inserts distributed tracing headers into the provided carrier dictionary,
+    /// enabling cross-service request tracking in New Relic.
     /// </summary>
-    /// <returns>A dictionary of distributed trace headers.</returns>
+    /// <returns>
+    /// A dictionary containing trace headers (newrelic, tracestate, traceparent)
+    /// that should be forwarded to downstream services.
+    /// </returns>
     [Trace]
     public static Dictionary<string, string> InsertDistributedTraceHeaders()
     {
-        // insert distributed trace headers needed for displaying the consumer calls in NewRelic transactions 
-        Dictionary<string, string> traceHeaders = new();
-        CurrentTransaction.InsertDistributedTraceHeaders(traceHeaders, (carrier, key, value) => { carrier[key] = value; });
+        var traceHeaders = new Dictionary<string, string>();
 
-        // traceHeaders will contain the following headers from transactions: newrelic, tracestate and traceparent
+        // Add distributed trace headers for cross-service tracking
+        CurrentTransaction.InsertDistributedTraceHeaders(traceHeaders, (carrier, key, value) =>
+        {
+            carrier[key] = value;
+        });
+
         return traceHeaders;
     }
 }

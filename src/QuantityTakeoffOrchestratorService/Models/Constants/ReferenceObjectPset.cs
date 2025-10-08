@@ -1,11 +1,22 @@
-﻿namespace QuantityTakeoffOrchestratorService.Models.Constants;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace QuantityTakeoffOrchestratorService.Models.Constants;
 
 /// <summary>
-/// Reference Object Property Set Properties
+/// Defines standard properties related to BIM model reference objects.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class ReferenceObjectPset
 {
+    /// <summary>
+    /// The name of the property set used to group reference object properties.
+    /// </summary>
     public const string PSetName = "Reference Object";
+
+    /// <summary>
+    /// Collection of fully qualified property keys, combining property names with
+    /// the property set name.
+    /// </summary>
     public static IReadOnlyCollection<string> Properties =
     [
         $"{PropertyNames.FileFormat},{PSetName}",
@@ -14,6 +25,9 @@ public static class ReferenceObjectPset
             $"{PropertyNames.GuidMS},{PSetName}"
     ];
 
+    /// <summary>
+    /// Standardized property names for reference object metadata.
+    /// </summary>
     public static class PropertyNames
     {
         public const string FileFormat = "File Format";

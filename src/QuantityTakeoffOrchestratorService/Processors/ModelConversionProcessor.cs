@@ -2,14 +2,18 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using NewRelic.Api.Agent;
+using QuantityTakeoffOrchestratorService.Enums;
 using QuantityTakeoffOrchestratorService.Helpers;
-using QuantityTakeoffOrchestratorService.Models;
 using QuantityTakeoffOrchestratorService.Models.Constants;
+using QuantityTakeoffOrchestratorService.Models.Domain;
 using QuantityTakeoffOrchestratorService.Models.Mapping;
+using QuantityTakeoffOrchestratorService.Models.Request;
 using QuantityTakeoffOrchestratorService.Models.View;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
+using QuantityTakeoffOrchestratorService.Processors.Interfaces;
 using QuantityTakeoffOrchestratorService.Services;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Dynamic;
 using System.Globalization;
 using System.Text.Json;
@@ -25,7 +29,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
     private readonly IConnectClientService _connectClient;
     private readonly ITrimbleFileService _trimbleFileService;
     private readonly ILogger<ModelConversionProcessor> _logger;
-    private readonly IHubContext<QuantityTakeoffOrchestratorHub> _hubContext;
+    private readonly IModelMetaDataProcessor _modelMetaDataProcessor;
 
     /// <summary>
     ///  itializes a new instance of the <see cref="ModelConversionProcessor"/> class.
@@ -37,146 +41,142 @@ public class ModelConversionProcessor : IModelConversionProcessor
         IConnectClientService connectClientService,
         ITrimbleFileService trimbleFileService,
         ILogger<ModelConversionProcessor> logger,
-        IHubContext<QuantityTakeoffOrchestratorHub> hubContext)
+        IHubContext<QuantityTakeoffOrchestratorHub> hubContext,
+        IModelMetaDataProcessor modelMetaDataProcessor)
     {
         this._connectClient = connectClientService;
         this._trimbleFileService = trimbleFileService;
         _logger = logger;
-        _hubContext = hubContext;
+        _modelMetaDataProcessor = modelMetaDataProcessor;
     }
 
     /// <summary>
-    ///     This is the main method that processes the request to add a model and creates a JSON file with the model details.
+    /// Processes a BIM model from Trimble Connect, converting it to a format optimized for quantity takeoff
+    /// operations and storing the processed data in Trimble File Service.
     /// </summary>
-    /// <param name="jobModelId"></param>
-    /// <param name="modelReferecenId"></param>
-    /// <param name="modelVersionId"></param>
-    /// <param name="userAccessToken"></param>
-    /// <param name="spaceId"></param>
-    /// <param name="folderId"></param>
-    /// <param name="notificationGroup"></param>
-    /// <returns></returns>
+    /// <param name="conversionRequest">The model conversion request containing all necessary parameters</param>
+    /// <returns>A result object with details about the processed model or error information</returns>
     [Trace]
-    public async Task<ProcessModelResult> ProcessAddModelRequestAndCreateJsonFile(string jobModelId, string modelReferecenId, string modelVersionId, string userAccessToken, string spaceId, string folderId, string notificationGroup)
+    public async Task<ModelProcessingResult> ConvertTrimBimModelAndUploadToFileService(ModelConversionRequest conversionRequest)
     {
         try
         {
-            Dictionary<string, string?> customAttributes = new() {
-                        { "modelReferecenId", modelReferecenId },
-                        { "modelVersionId", modelVersionId }
-                    };
-            // log custom attributes to NewRelic
-            NewRelicHelper.AddCustomLoggingAttributes(customAttributes);
+            // Log model details to New Relic for tracing
+            NewRelicHelper.AddCustomLoggingAttributes(new Dictionary<string, string?>
+            {
+                { "JobModelId", conversionRequest.JobModelId },
+                { "connectModelId", conversionRequest.TrimbleConnectModelId },
+            });
 
-
-            await _hubContext.Clients.Group(notificationGroup)
-                .SendAsync("ModelConversionStatus", new ConversionStatus() {
-                    JobModelId = jobModelId,
-                    Status = "Downloading & Processing Model", 
-                    Progress = 10 });
-
-            var model = await ProcessTrimBim(modelReferecenId, userAccessToken, modelVersionId);
+            // Step 1: Download and parse the BIM model
+            _logger.LogInformation("Starting model download and parsing for ModelReferenceId: {ModelReferenceId}",
+                conversionRequest.TrimbleConnectModelId);
+            var model = await ProcessTrimBim(
+                conversionRequest.UserAccessToken,
+                conversionRequest.TrimbleConnectModelId,
+                conversionRequest.ModelVersionId);
 
             if (model is null)
             {
-                var processModelFailureResult = new ProcessModelResult
-                {
-                    ModelId = modelReferecenId,
-                    SpaceId = spaceId,
-                    FolderId = folderId,
-                    IsConvertedSuccessfully = false,
-                    ErrorMessage = "Model is null after processing."
-                };
-                return processModelFailureResult;
+                _logger.LogError("Model is null after processing for ModelReferenceId: {ModelReferenceId}",
+                    conversionRequest.TrimbleConnectModelId);
+                return CreateFailureResult(conversionRequest, "Model is null after processing.");
             }
 
-            // Elements extraction and JSON creation
-            await _hubContext.Clients.Group(notificationGroup)
-               .SendAsync("ModelConversionStatus", new ConversionStatus()
-               {
-                   JobModelId = jobModelId,
-                   Status = "Element extraction in progress",
-                   Progress = 50
-               });
-            var elementsJson = Create3DTakeoffElementsAndUploadToFileService(modelReferecenId, model);
+            // Step 2: Extract elements and create JSON
+            _logger.LogInformation("Generating takeoff elements JSON for ModelReferenceId: {ModelReferenceId}",
+                conversionRequest.TrimbleConnectModelId);
+            var takeoffElementsJson = Generate3DTakeoffElementsJson(
+                conversionRequest.TrimbleConnectModelId,
+                model);
 
-            // Upload the JSON content to the Trimble Connect File Service
-            await _hubContext.Clients.Group(notificationGroup)
-               .SendAsync("ModelConversionStatus", new ConversionStatus()
-               {
-                   JobModelId = jobModelId,
-                   Status = "Uploading Content",
-                   Progress = 80
-               });
-            var fileId = await UploadToConnectFileService(spaceId, folderId, modelReferecenId, elementsJson);
+            // Step 3: Upload processed model to file service
+            _logger.LogInformation("Uploading takeoff elements to file service for ModelReferenceId: {ModelReferenceId}",
+                conversionRequest.TrimbleConnectModelId);
+            var fileId = await UploadToConnectFileService(
+                conversionRequest.SpaceId,
+                conversionRequest.FolderId,
+                conversionRequest.TrimbleConnectModelId,
+                takeoffElementsJson);
 
-            // Extract unique property definitions from the model
+            // These two operations can run in parallel
+            var uniquePropertiesTask = Task.Run(() => ProcessModelAndFetchUniquePropertyDefinitions(model));
+            var fileDownloadUrlTask = GetFileDownloadUrlFromFileService(conversionRequest.SpaceId, fileId);
 
-            await _hubContext.Clients.Group(notificationGroup)
-               .SendAsync("ModelConversionStatus", new ConversionStatus()
-               {
-                   JobModelId = jobModelId,
-                   Status = "Finalizing the process",
-                   Progress = 90
-               });
+            // Wait for both tasks to complete
+            await Task.WhenAll(uniquePropertiesTask, fileDownloadUrlTask);
 
-            var uniquePropertyDefinitions = ProcessModelAndFetchUniquePropertyDefinitions(model);
+            var uniquePropertyDefinitions = uniquePropertiesTask.Result;
+            var fileDownloadUrl = await fileDownloadUrlTask;
 
-            var fileDownloadUrl = await GetFileDownloadUrlFromFileService(spaceId, fileId);
+            // Step 4: Update model metadata in the database
+            _logger.LogInformation("Updating model metadata for ModelReferenceId: {ModelReferenceId}",
+                conversionRequest.TrimbleConnectModelId);
+            await _modelMetaDataProcessor.UpdateFileIdAndPSetDefinitionsForConnectModel(
+                conversionRequest.TrimbleConnectModelId,
+                fileId,
+                uniquePropertyDefinitions,
+                conversionRequest.CustomerId);
 
-            // Log the successful processing of the model
-            _logger.LogInformation($"Successfully processed model with ModelReferenceId: {modelReferecenId}. FileId: {fileId}");
-            await _hubContext.Clients.Group(notificationGroup)
-               .SendAsync("ModelConversionStatus", new ConversionStatus()
-               {
-                   JobModelId = jobModelId,
-                   Status = "Completed",
-                   Progress = 100
-               });
-
-            // Create a ProcessModelResult object to return
-            var processModelResult = new ProcessModelResult
+            // Return success result
+            return new ModelProcessingResult
             {
-                ModelId = modelReferecenId,
-                SpaceId = spaceId,
-                FolderId = folderId,
-                FileId = fileId,
-                FileDownloadUrl = fileDownloadUrl,
-                UniqueProperties = uniquePropertyDefinitions.ToList(),
-                IsConvertedSuccessfully = true,
+                JobModelId = conversionRequest.JobModelId,
+                TrimbleConnectModelId = conversionRequest.TrimbleConnectModelId,
+                IsConversionSuccessful = true,
+                ModelFileDownloadUrl = fileDownloadUrl
             };
-            return processModelResult;
-
         }
         catch (Exception ex)
         {
-            string errorMessage = $"Failed to process the model conversion request for ModelReferenceId: {modelReferecenId}. See inner exception for details.";
+            string errorMessage = $"Failed to process model conversion request for ModelReferenceId: {conversionRequest.TrimbleConnectModelId}";
             _logger.LogError(ex, errorMessage);
-            throw new Exception(errorMessage, ex);
+
+            return new ModelProcessingResult
+            {
+                JobModelId = conversionRequest.JobModelId,
+                TrimbleConnectModelId = conversionRequest.TrimbleConnectModelId,
+                IsConversionSuccessful = false,
+                ErrorMessage = $"{errorMessage}: {ex.Message}"
+            };
         }
     }
 
-    private async Task<IModel?> ProcessTrimBim(string connectFileId, string userAccessToken, string? fileVersionId = null)
+    #region Helper methods
+
+    /// <summary>
+    /// Creates a failure result with the specified error message
+    /// </summary>
+    private static ModelProcessingResult CreateFailureResult(ModelConversionRequest request, string errorMessage)
+    {
+        return new ModelProcessingResult
+        {
+            TrimbleConnectModelId = request.TrimbleConnectModelId,
+            IsConversionSuccessful = false,
+            ErrorMessage = errorMessage
+        };
+    }
+
+    private async Task<IModel?> ProcessTrimBim(string userAccessToken, string trimbleConnectModelId, string? modelFileVersionId = null)
     {
         IModel? result = null;
-        byte[]? modelBlob = await _connectClient.DownloadModelFile(userAccessToken, connectFileId, fileVersionId).ConfigureAwait(false);
+        byte[]? modelBlob = await _connectClient.DownloadModelFile(userAccessToken, trimbleConnectModelId, modelFileVersionId).ConfigureAwait(false);
         if (!Trimble.Technology.TrimBim.Model.TryParse(modelBlob, out result))
         {
             string errorMessage = "Failed to parse the model.";
             throw new Exception(errorMessage);
         }
-    ;
         return result;
     }
 
     [Trace]
-    private string Create3DTakeoffElementsAndUploadToFileService(string referenceId, IModel model)
+    private string Generate3DTakeoffElementsJson(string trimbleConnectModelId, IModel model)
     {
         string fileId = "";
         if (model is not null)
         {
             var propertyMappings = ProcessModelProperties(model);
-            var quantityTakeoffElements = FetchBasicTakeOffElements(model, referenceId).Select(element =>
+            var quantityTakeoffElements = FetchBasicTakeOffElements(model, trimbleConnectModelId).Select(element =>
             {
                 if (propertyMappings.TryGetValue(element.Model3DItemIdIndex.Idx, out var properties))
                 {
@@ -197,14 +197,14 @@ public class ModelConversionProcessor : IModelConversionProcessor
     }
 
     [Trace]
-    private async Task<string> UploadToConnectFileService(string spaceId, string folderId, string modelReferecenId, string jsonContent)
+    private async Task<string> UploadToConnectFileService(string spaceId, string folderId, string trimbleConnectModelId, string jsonContent)
     {
         try
         {
             string fileId = await _trimbleFileService.UploadFileAsync(
                 spaceId,
                 folderId,
-                modelReferecenId + ".json",
+                trimbleConnectModelId + ".json",
                 System.Text.Encoding.UTF8.GetBytes(jsonContent)
             );
 
@@ -517,7 +517,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
         return quantityTakeoffItems;
     }
 
-    private IEnumerable<QuantityTakeoffElement> FetchBasicTakeOffElements(IModel model, string ReferenceId)
+    private IEnumerable<QuantityTakeoffElement> FetchBasicTakeOffElements(IModel model, string trimbleConnectModelId)
     {
         return model.Geometry.Instances.Select(x => x.EntityId).Distinct()
             .Select(entityIdx =>
@@ -526,7 +526,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 return new QuantityTakeoffElement
                 {
                     Id = entityIdx.ToString(),
-                    ReferenceId = ReferenceId,
+                    ReferenceId = trimbleConnectModelId,
                     ItemType = GetItemType(entity.ClassName),
                     Origin = OriginType.Model3D,
                     Count = new QuantityValueView
@@ -552,8 +552,6 @@ public class ModelConversionProcessor : IModelConversionProcessor
         return Model3DItemTypesMapper.modelItemTypesMapping.FirstOrDefault(types => string.Equals(types.Key, className, StringComparison.OrdinalIgnoreCase), new KeyValuePair<string, ItemType>("other", ItemType.other)).Value;
     }
 
-    #region Helper methods
-
     /// <summary>
     /// Gets the unique set of properties in a model
     /// </summary>
@@ -561,41 +559,41 @@ public class ModelConversionProcessor : IModelConversionProcessor
     /// <returns cref="PSetDefinition">A collection of all the unique properties in the model.</returns>
     [Trace]
     private static IEnumerable<PSetDefinition> ProcessModelAndFetchUniquePropertyDefinitions(IModel model)
-    {
-        var modelProperties = model.Properties.PropertySets.PropertySetDefinitions.SelectMany(
-            pSet =>
-            {
-                var psetName = model.Properties.PropertySets.PropertySetNames[(int)pSet.NameId];
-                return pSet.Properties.Select(propertyDefinition =>
-                {
-                    var propertyName = model.Properties.PropertySets.PropertyNames[(int)propertyDefinition.PropertyNameId];
-                    return new PSetDefinition
-                    {
-                        PropertyName = propertyName,
-                        PSetName = psetName,
-                        PropertyType = propertyDefinition.Type
-                    };
-                });
-
-            }
-        ).DistinctBy(x => $"{x.PSetName}{x.PropertyName}");
-
-        var additionalProperties = ReferenceObjectPset.Properties
-        .Concat([PresentationLayerPset.Property])
-        .Concat(ProductPset.Properties)
-        .Select(propertyString =>
         {
-            var propArray = propertyString.Split(',');
-            return new PSetDefinition()
-            {
-                PropertyName = propArray[0],
-                PSetName = propArray[1],
-                PropertyType = PropertyType.StringValue
-            };
-        });
+            var modelProperties = model.Properties.PropertySets.PropertySetDefinitions.SelectMany(
+                pSet =>
+                {
+                    var psetName = model.Properties.PropertySets.PropertySetNames[(int)pSet.NameId];
+                    return pSet.Properties.Select(propertyDefinition =>
+                    {
+                        var propertyName = model.Properties.PropertySets.PropertyNames[(int)propertyDefinition.PropertyNameId];
+                        return new PSetDefinition
+                        {
+                            PropertyName = propertyName,
+                            PSetName = psetName,
+                            PropertyType = propertyDefinition.Type
+                        };
+                    });
 
-        return modelProperties.Concat(additionalProperties);
-    }
+                }
+            ).DistinctBy(x => $"{x.PSetName}{x.PropertyName}");
+
+            var additionalProperties = ReferenceObjectPset.Properties
+            .Concat([PresentationLayerPset.Property])
+            .Concat(ProductPset.Properties)
+            .Select(propertyString =>
+            {
+                var propArray = propertyString.Split(',');
+                return new PSetDefinition()
+                {
+                    PropertyName = propArray[0],
+                    PSetName = propArray[1],
+                    PropertyType = PropertyType.StringValue
+                };
+            });
+
+            return modelProperties.Concat(additionalProperties);
+        }
 
     /// <inheritdoc/>
     [Trace]
