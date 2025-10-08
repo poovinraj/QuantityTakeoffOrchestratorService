@@ -278,6 +278,7 @@ public static class ServiceCustomExtensions
                 .MongoDbRepository(r =>
                 {
                     r.DatabaseFactory(_ => mongoDatabase);
+                    r.CollectionName = nameof(ModelConversionStateMachine);
                 });
 
             // register and configure an azure service bus as a message broker
