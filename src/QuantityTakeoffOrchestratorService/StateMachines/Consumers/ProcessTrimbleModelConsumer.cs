@@ -52,15 +52,15 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
     {
         try {
 
-            // Decrypt the access token
-            string decryptedAccessToken = await DecryptAccessToken(context);
-            if (string.IsNullOrWhiteSpace(decryptedAccessToken))
+            // Get the access token from Base64
+            string accessToken = await GetAccessTokenFromBase64(context);
+            if (string.IsNullOrWhiteSpace(accessToken))
             {
-                throw new InvalidOperationException("No access token was provided or decryption failed");
+                throw new InvalidOperationException("No access token was provided or conversion from Base64 failed");
             }
 
             // Create the conversion request
-            var conversionRequest = CreateModelConversionRequest(context.Message, decryptedAccessToken);
+            var conversionRequest = CreateModelConversionRequest(context.Message, accessToken);
 
             // Process the model conversion
             var result = await _modelConversionProcessor.ConvertTrimBimModelAndUploadToFileService(conversionRequest);
@@ -84,13 +84,24 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
 
     #region Helper Methods
 
-    private async Task<string> DecryptAccessToken(ConsumeContext<IProcessTrimBimModel> context)
+    private async Task<string> GetAccessTokenFromBase64(ConsumeContext<IProcessTrimBimModel> context)
     {
-        var encryptedAccessToken = Convert.FromBase64String(context.Headers.Get<string>("AccessToken")!);
-        var encryptedAesKey = Convert.FromBase64String(context.Headers.Get<string>("AesKey")!);
+        var base64Token = context.Headers.Get<string>("AccessToken");
+        if (string.IsNullOrEmpty(base64Token))
+        {
+            return string.Empty;
+        }
 
-        var decryptedAesKey = await _dataProtectionService.Decrypt(encryptedAesKey);
-        return _aesEncryptionService.Decrypt(encryptedAccessToken, decryptedAesKey);
+        try
+        {
+            byte[] tokenBytes = Convert.FromBase64String(base64Token);
+            return System.Text.Encoding.UTF8.GetString(tokenBytes);
+        }
+        catch (FormatException ex)
+        {
+            _logger.LogError(ex, "Invalid Base64 format for access token");
+            return string.Empty;
+        }
     }
 
     private ModelConversionRequest CreateModelConversionRequest(IProcessTrimBimModel message, string accessToken)
