@@ -267,7 +267,12 @@ public static class ServiceCustomExtensions
         {
             mt.SetKebabCaseEndpointNameFormatter();
 
-            mt.AddConsumer<ProcessTrimbleModelConsumer>();
+            var processTrimbleModelConsumer = mt.AddConsumer<ProcessTrimbleModelConsumer>();
+            processTrimbleModelConsumer.Endpoint(e =>
+            {
+                e.PrefetchCount = 1;
+                e.ConcurrentMessageLimit = 1; // Set specific limit for this consumer
+            });
 
             var mongoDbService = webAppBuilder.Services.BuildServiceProvider().GetRequiredService<IMongoDbService>();
             var mongoDbName = webAppBuilder.Configuration.GetSection("MongoDbSettings:DatabaseName").Value;
@@ -308,6 +313,8 @@ public static class ServiceCustomExtensions
                         subscriptionConfig =>
                         {
                             subscriptionConfig.Rule = rule;
+                            subscriptionConfig.ConcurrentMessageLimit = 1;
+                            subscriptionConfig.PrefetchCount = 1;
                             subscriptionConfig.ConfigureConsumer<ProcessTrimbleModelConsumer>(context);
                         });
 
