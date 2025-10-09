@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using Flurl.Util;
+using Microsoft.AspNetCore.SignalR;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using NewRelic.Api.Agent;
@@ -16,6 +17,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Dynamic;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using Trimble.Technology.TrimBim;
 
@@ -109,6 +111,8 @@ public class ModelConversionProcessor : IModelConversionProcessor
             var uniquePropertyDefinitions = uniquePropertiesTask.Result;
             var fileDownloadUrl = await fileDownloadUrlTask;
 
+            model = null; // Release model from memory
+
             // Step 4: Update model metadata in the database
             _logger.LogInformation("Updating model metadata for ModelReferenceId: {ModelReferenceId}",
                 conversionRequest.TrimbleConnectModelId);
@@ -184,16 +188,70 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 }
                 return element;
             });
-            List<ExpandoObject> QuantityTakeoffElements = CreateExpandoObjects(quantityTakeoffElements);
-            string jsonContent = System.Text.Json.JsonSerializer.Serialize(QuantityTakeoffElements, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
 
-            return jsonContent;
+            _logger.LogInformation("Total takeoff elements processed: {Count} for ModelReferenceId: {ModelReferenceId}",
+                quantityTakeoffElements.Count(), trimbleConnectModelId);
+
+            List<ExpandoObject> QuantityTakeoffElements = CreateExpandoObjects(quantityTakeoffElements);
+
+            _logger.LogInformation("Total ExpandoObjects created: {Count} for ModelReferenceId: {ModelReferenceId}",
+                QuantityTakeoffElements.Count, trimbleConnectModelId);
+
+            // Clear references to free up memory
+            quantityTakeoffElements = null; // Release memory
+
+            var jsonString = GenerateJsonFromExpandoObjects(QuantityTakeoffElements);
+            
+            _logger.LogInformation("Generated JSON string length: {Length} for ModelReferenceId: {ModelReferenceId}",
+                jsonString.Length, trimbleConnectModelId);
+
+            return jsonString;
         }
 
         return fileId;
+    }
+
+    private static readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions
+    {
+        WriteIndented = false // Remove indentation for better performance
+    };
+
+    private static string GenerateJsonFromExpandoObjects(List<ExpandoObject> quantityTakeoffElements)
+    {
+        // Process in batches if the collection is very large
+        const int batchSize = 5000;
+
+        // For small collections, serialize directly
+        if (quantityTakeoffElements.Count <= batchSize)
+        {
+            return JsonSerializer.Serialize(quantityTakeoffElements, _jsonSerializerOptions);
+        }
+
+        // For larger collections, process in batches and combine results
+        using var memoryStream = new MemoryStream();
+        using var writer = new Utf8JsonWriter(memoryStream);
+
+        // Start JSON array
+        writer.WriteStartArray();
+
+        // Process in batches
+        for (int i = 0; i < quantityTakeoffElements.Count; i += batchSize)
+        {
+            var batch = quantityTakeoffElements.Skip(i).Take(batchSize);
+
+            foreach (var item in batch)
+            {
+                // Serialize each item directly to the writer
+                JsonSerializer.Serialize(writer, item, _jsonSerializerOptions);
+            }
+        }
+
+        // End JSON array
+        writer.WriteEndArray();
+        writer.Flush();
+
+        // Convert to string
+        return Encoding.UTF8.GetString(memoryStream.ToArray());
     }
 
     [Trace]
