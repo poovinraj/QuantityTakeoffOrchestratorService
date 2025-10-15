@@ -101,7 +101,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 conversionRequest.TrimbleConnectModelId);
             
             // Use the stream-based version to prevent memory issues
-            var (jsonContent, jsonByteSize) = await Generate3DTakeoffElementsJsonAsync(
+            var (jsonStream, jsonByteSize, tempFilePath) = await Generate3DTakeoffElementsJsonAsync(
                 conversionRequest.TrimbleConnectModelId,
                 model);
 
@@ -110,13 +110,33 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 memoryAfterJsonGeneration, memoryAfterJsonGeneration - memoryAfterModelLoad, jsonByteSize / (1024.0 * 1024.0), conversionRequest.TrimbleConnectModelId);
 
             // Step 3: Upload processed model to file service
-            var fileId = await UploadToConnectFileService(
-                conversionRequest.SpaceId,
-                conversionRequest.FolderId,
-                conversionRequest.TrimbleConnectModelId,
-                jsonContent);
+            string fileId;
+            try
+            {
+                fileId = await UploadToConnectFileService(
+                    conversionRequest.SpaceId,
+                    conversionRequest.FolderId,
+                    conversionRequest.TrimbleConnectModelId,
+                    jsonStream);
+            }
+            finally
+            {
+                jsonStream.Dispose();
 
-            jsonContent = null; // Release JSON data
+                if(!string.IsNullOrEmpty(tempFilePath) && File.Exists(tempFilePath))
+                {
+                    try
+                    {
+                        File.Delete(tempFilePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to delete temporary JSON file: {FilePath}", tempFilePath);
+                        throw;
+                    }
+                }
+            }
+
             GC.Collect(); // Request garbage collection
 
             var memoryAfterUpload = GetMemoryUsage();
@@ -238,11 +258,11 @@ public class ModelConversionProcessor : IModelConversionProcessor
     }
 
     [Trace]
-    private async Task<(string jsonContent, long byteSize)> Generate3DTakeoffElementsJsonAsync(string trimbleConnectModelId, IModel model)
+    private async Task<(Stream jsonStream, long byteSize, string tempFilePath)> Generate3DTakeoffElementsJsonAsync(string trimbleConnectModelId, IModel model)
     {
         if (model is null)
         {
-            return (string.Empty, 0);
+            return (Stream.Null, 0, string.Empty);
         }
 
         try
@@ -296,16 +316,16 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 // Get the file size
                 var fileInfo = new FileInfo(tempFilePath);
                 long jsonByteSize = fileInfo.Length;
-                
+
                 // Read the file back into memory in a controlled manner for upload
-                string jsonContent = await File.ReadAllTextAsync(tempFilePath);
+                var jsonStream = fileInfo.OpenRead();
                 
                 _logger.LogInformation("Generated JSON file size: {SizeMB:F2}MB for ModelReferenceId: {ModelReferenceId}",
                     jsonByteSize / (1024.0 * 1024.0), trimbleConnectModelId);
                 
-                return (jsonContent, jsonByteSize);
+                return (jsonStream, jsonByteSize, tempFilePath);
             }
-            finally
+            catch
             {
                 // Clean up the temp file
                 try
@@ -319,6 +339,8 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 {
                     _logger.LogWarning(ex, "Failed to delete temporary JSON file: {FilePath}", tempFilePath);
                 }
+
+                throw;
             }
         }
         catch (Exception ex)
@@ -391,18 +413,18 @@ public class ModelConversionProcessor : IModelConversionProcessor
     };
 
     [Trace]
-    private async Task<string> UploadToConnectFileService(string spaceId, string folderId, string trimbleConnectModelId, string jsonContent)
+    private async Task<string> UploadToConnectFileService(string spaceId, string folderId, string trimbleConnectModelId, Stream dataStream)
     {
         try
         {
             _logger.LogInformation("Starting file upload to service for ModelReferenceId: {ModelReferenceId}, content size: {ContentSizeMB:F2}MB", 
-                trimbleConnectModelId, Encoding.UTF8.GetByteCount(jsonContent) / (1024.0 * 1024.0));
+                trimbleConnectModelId, dataStream.Length / (1024.0 * 1024.0));
             
             string fileId = await _trimbleFileService.UploadFileAsync(
                 spaceId,
                 folderId,
                 trimbleConnectModelId + ".json",
-                System.Text.Encoding.UTF8.GetBytes(jsonContent)
+                dataStream
             );
 
             _logger.LogInformation("Completed file upload for ModelReferenceId: {ModelReferenceId}, FileId: {FileId}", 
