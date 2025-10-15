@@ -17,6 +17,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Dynamic;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Trimble.Technology.TrimBim;
@@ -61,6 +62,9 @@ public class ModelConversionProcessor : IModelConversionProcessor
     [Trace]
     public async Task<ModelProcessingResult> ConvertTrimBimModelAndUploadToFileService(ModelConversionRequest conversionRequest)
     {
+        var stopwatch = Stopwatch.StartNew();
+        var memoryUsageStart = GetMemoryUsage();
+        
         try
         {
             // Log model details to New Relic for tracing
@@ -70,13 +74,20 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 { "connectModelId", conversionRequest.TrimbleConnectModelId },
             });
 
+            _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 1 - Starting model conversion with initial memory usage: {MemoryUsageMB}MB for ModelReferenceId: {ModelReferenceId}",
+                memoryUsageStart, conversionRequest.TrimbleConnectModelId);
+
             // Step 1: Download and parse the BIM model
-            _logger.LogInformation("Starting model download and parsing for ModelReferenceId: {ModelReferenceId}",
+            _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 2 - Starting model download and parsing for ModelReferenceId: {ModelReferenceId}",
                 conversionRequest.TrimbleConnectModelId);
             var model = await ProcessTrimBim(
                 conversionRequest.UserAccessToken,
                 conversionRequest.TrimbleConnectModelId,
                 conversionRequest.ModelVersionId);
+
+            var memoryAfterModelLoad = GetMemoryUsage();
+            _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 3 - Memory after model load: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB) for ModelReferenceId: {ModelReferenceId}",
+                memoryAfterModelLoad, memoryAfterModelLoad - memoryUsageStart, conversionRequest.TrimbleConnectModelId);
 
             if (model is null)
             {
@@ -88,18 +99,29 @@ public class ModelConversionProcessor : IModelConversionProcessor
             // Step 2: Extract elements and create JSON
             _logger.LogInformation("Generating takeoff elements JSON for ModelReferenceId: {ModelReferenceId}",
                 conversionRequest.TrimbleConnectModelId);
-            var takeoffElementsJson = Generate3DTakeoffElementsJson(
+            
+            // Use the stream-based version to prevent memory issues
+            var (jsonContent, jsonByteSize) = await Generate3DTakeoffElementsJsonAsync(
                 conversionRequest.TrimbleConnectModelId,
                 model);
 
+            var memoryAfterJsonGeneration = GetMemoryUsage();
+            _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 4 - Memory after JSON generation: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB), JSON size: {JsonSizeMB:F2}MB for ModelReferenceId: {ModelReferenceId}",
+                memoryAfterJsonGeneration, memoryAfterJsonGeneration - memoryAfterModelLoad, jsonByteSize / (1024.0 * 1024.0), conversionRequest.TrimbleConnectModelId);
+
             // Step 3: Upload processed model to file service
-            _logger.LogInformation("Uploading takeoff elements to file service for ModelReferenceId: {ModelReferenceId}",
-                conversionRequest.TrimbleConnectModelId);
             var fileId = await UploadToConnectFileService(
                 conversionRequest.SpaceId,
                 conversionRequest.FolderId,
                 conversionRequest.TrimbleConnectModelId,
-                takeoffElementsJson);
+                jsonContent);
+
+            jsonContent = null; // Release JSON data
+            GC.Collect(); // Request garbage collection
+
+            var memoryAfterUpload = GetMemoryUsage();
+            _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 5 -  Memory after upload: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB) for ModelReferenceId: {ModelReferenceId}",
+                memoryAfterUpload, memoryAfterUpload - memoryAfterJsonGeneration, conversionRequest.TrimbleConnectModelId);
 
             // These two operations can run in parallel
             var uniquePropertiesTask = Task.Run(() => ProcessModelAndFetchUniquePropertyDefinitions(model));
@@ -112,15 +134,21 @@ public class ModelConversionProcessor : IModelConversionProcessor
             var fileDownloadUrl = await fileDownloadUrlTask;
 
             model = null; // Release model from memory
+            GC.Collect(); // Request garbage collection
+
+            var memoryAfterModelRelease = GetMemoryUsage();
+            _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 6 - Memory after model release: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB) for ModelReferenceId: {ModelReferenceId}",
+                memoryAfterModelRelease, memoryAfterModelRelease - memoryAfterUpload, conversionRequest.TrimbleConnectModelId);
 
             // Step 4: Update model metadata in the database
-            _logger.LogInformation("Updating model metadata for ModelReferenceId: {ModelReferenceId}",
-                conversionRequest.TrimbleConnectModelId);
             await _modelMetaDataProcessor.UpdateFileIdAndPSetDefinitionsForConnectModel(
                 conversionRequest.TrimbleConnectModelId,
                 fileId,
                 uniquePropertyDefinitions,
                 conversionRequest.CustomerId);
+
+            var finalMemory = GetMemoryUsage();
+            stopwatch.Stop();
 
             // Return success result
             return new ModelProcessingResult
@@ -133,8 +161,17 @@ public class ModelConversionProcessor : IModelConversionProcessor
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            var memoryAtException = GetMemoryUsage();
+            var processInfo = GetProcessMemoryInfo();
+            
             string errorMessage = $"Failed to process model conversion request for ModelReferenceId: {conversionRequest.TrimbleConnectModelId}";
-            _logger.LogError(ex, errorMessage);
+            _logger.LogError(ex, "{ErrorMessage}. Memory at exception: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB), " +
+                "Working Set: {WorkingSet}MB, Private Bytes: {PrivateBytes}MB, Process time: {ElapsedMs}ms", 
+                errorMessage, memoryAtException, memoryAtException - memoryUsageStart, 
+                processInfo.workingSetMB, processInfo.privateBytesMB, stopwatch.ElapsedMilliseconds);
+
+            GC.Collect(); // Try to recover memory
 
             return new ModelProcessingResult
             {
@@ -147,6 +184,33 @@ public class ModelConversionProcessor : IModelConversionProcessor
     }
 
     #region Helper methods
+
+    /// <summary>
+    /// Gets memory usage in MB for the current process
+    /// </summary>
+    private static long GetMemoryUsage()
+    {
+        return GC.GetTotalMemory(false) / (1024 * 1024);
+    }
+
+    /// <summary>
+    /// Gets detailed process memory information
+    /// </summary>
+    private static (long workingSetMB, long privateBytesMB) GetProcessMemoryInfo()
+    {
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            return (
+                workingSetMB: process.WorkingSet64 / (1024 * 1024),
+                privateBytesMB: process.PrivateMemorySize64 / (1024 * 1024)
+            );
+        }
+        catch
+        {
+            return (-1, -1); // Return -1 if we can't get process info
+        }
+    }
 
     /// <summary>
     /// Creates a failure result with the specified error message
@@ -174,12 +238,25 @@ public class ModelConversionProcessor : IModelConversionProcessor
     }
 
     [Trace]
-    private string Generate3DTakeoffElementsJson(string trimbleConnectModelId, IModel model)
+    private async Task<(string jsonContent, long byteSize)> Generate3DTakeoffElementsJsonAsync(string trimbleConnectModelId, IModel model)
     {
-        string fileId = "";
-        if (model is not null)
+        if (model is null)
         {
+            return (string.Empty, 0);
+        }
+
+        try
+        {
+            var memoryBeforeProcessing = GetMemoryUsage();
+            _logger.LogInformation("Starting property processing for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB", 
+                trimbleConnectModelId, memoryBeforeProcessing);
+
             var propertyMappings = ProcessModelProperties(model);
+            
+            var memoryAfterPropertyMapping = GetMemoryUsage();
+            _logger.LogInformation("Property mappings completed for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)", 
+                trimbleConnectModelId, memoryAfterPropertyMapping, memoryAfterPropertyMapping - memoryBeforeProcessing);
+
             var quantityTakeoffElements = FetchBasicTakeOffElements(model, trimbleConnectModelId).Select(element =>
             {
                 if (propertyMappings.TryGetValue(element.Model3DItemIdIndex.Idx, out var properties))
@@ -187,28 +264,125 @@ public class ModelConversionProcessor : IModelConversionProcessor
                     element.Properties = properties;
                 }
                 return element;
-            });
+            }).ToList();
 
-            _logger.LogInformation("Total takeoff elements processed: {Count} for ModelReferenceId: {ModelReferenceId}",
-                quantityTakeoffElements.Count(), trimbleConnectModelId);
+            var memoryAfterElementFetch = GetMemoryUsage();
+            _logger.LogInformation("Total takeoff elements processed: {Count} for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)",
+                quantityTakeoffElements.Count, trimbleConnectModelId, memoryAfterElementFetch, memoryAfterElementFetch - memoryAfterPropertyMapping);
 
-            List<ExpandoObject> QuantityTakeoffElements = CreateExpandoObjects(quantityTakeoffElements);
-
-            _logger.LogInformation("Total ExpandoObjects created: {Count} for ModelReferenceId: {ModelReferenceId}",
-                QuantityTakeoffElements.Count, trimbleConnectModelId);
-
-            // Clear references to free up memory
-            quantityTakeoffElements = null; // Release memory
-
-            var jsonString = GenerateJsonFromExpandoObjects(QuantityTakeoffElements);
+            // Create a temporary file to store the JSON data
+            var tempFilePath = Path.GetTempFileName();
             
-            _logger.LogInformation("Generated JSON string length: {Length} for ModelReferenceId: {ModelReferenceId}",
-                jsonString.Length, trimbleConnectModelId);
+            try
+            {
+                _logger.LogInformation("Starting JSON serialization to temp file for ModelReferenceId: {ModelReferenceId}", 
+                    trimbleConnectModelId);
+                
+                // Using a FileStream for the JSON output to avoid memory issues
+                using (var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 
+                    bufferSize: 32768, useAsync: true))
+                {
+                    await GenerateJsonToStreamAsync(quantityTakeoffElements, fileStream);
+                }
+                
+                quantityTakeoffElements = null; // Release memory
+                propertyMappings = null; // Release memory
+                GC.Collect(); // Force garbage collection
+                
+                var memoryAfterSerialization = GetMemoryUsage();
+                _logger.LogInformation("JSON serialization completed for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)", 
+                    trimbleConnectModelId, memoryAfterSerialization, memoryAfterSerialization - memoryAfterElementFetch);
 
-            return jsonString;
+                // Get the file size
+                var fileInfo = new FileInfo(tempFilePath);
+                long jsonByteSize = fileInfo.Length;
+                
+                // Read the file back into memory in a controlled manner for upload
+                string jsonContent = await File.ReadAllTextAsync(tempFilePath);
+                
+                _logger.LogInformation("Generated JSON file size: {SizeMB:F2}MB for ModelReferenceId: {ModelReferenceId}",
+                    jsonByteSize / (1024.0 * 1024.0), trimbleConnectModelId);
+                
+                return (jsonContent, jsonByteSize);
+            }
+            finally
+            {
+                // Clean up the temp file
+                try
+                {
+                    if (File.Exists(tempFilePath))
+                    {
+                        File.Delete(tempFilePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to delete temporary JSON file: {FilePath}", tempFilePath);
+                }
+            }
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating JSON for ModelReferenceId: {ModelReferenceId}", trimbleConnectModelId);
+            throw;
+        }
+    }
 
-        return fileId;
+    private async Task GenerateJsonToStreamAsync(List<QuantityTakeoffElement> elements, Stream outputStream)
+    {
+        const int batchSize = 1000; // Process in smaller batches to manage memory
+
+        using var writer = new Utf8JsonWriter(outputStream, new JsonWriterOptions
+        {
+            Indented = false,
+            SkipValidation = true
+        });
+        
+        // Start JSON array
+        writer.WriteStartArray();
+        
+        // Process elements in batches
+        for (int i = 0; i < elements.Count; i += batchSize)
+        {
+            var batch = elements.Skip(i).Take(batchSize).ToList();
+            
+            foreach (var element in batch)
+            {
+                // Create a dictionary to hold model properties
+                var modelProperties = element.Properties?
+                    .GroupBy(x => x.PropKey)
+                    .Select(g => g.First()) // Take the first distinct entry
+                    .ToDictionary(x => x.PropKey, x => x.PropValue) ?? new Dictionary<string, string>();
+
+                // Deserialize the element to an ExpandoObject
+                var expandedResult = BsonSerializer.Deserialize<ExpandoObject>(element.ToBsonDocument());
+                
+                // Add model properties to the ExpandoObject
+                foreach (var kvp in modelProperties)
+                {
+                    ((IDictionary<string, object>)expandedResult).TryAdd(kvp.Key, kvp.Value);
+                }
+                
+                // Add the ID field
+                ((IDictionary<string, object>)expandedResult).TryAdd(FieldNames.id.ToString(), element.Id);
+                
+                // Remove the "properties" field if it exists
+                _ = ((IDictionary<string, object>)expandedResult).Remove("properties");
+                
+                // Serialize this item to the JSON writer
+                JsonSerializer.Serialize(writer, expandedResult);
+            }
+            
+            // Flush the writer after each batch
+            await writer.FlushAsync();
+            
+            // Clear the batch to help with memory
+            batch.Clear();
+        }
+        
+        // End JSON array
+        writer.WriteEndArray();
+        await writer.FlushAsync();
     }
 
     private static readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions
@@ -216,49 +390,14 @@ public class ModelConversionProcessor : IModelConversionProcessor
         WriteIndented = false // Remove indentation for better performance
     };
 
-    private static string GenerateJsonFromExpandoObjects(List<ExpandoObject> quantityTakeoffElements)
-    {
-        // Process in batches if the collection is very large
-        const int batchSize = 5000;
-
-        // For small collections, serialize directly
-        if (quantityTakeoffElements.Count <= batchSize)
-        {
-            return JsonSerializer.Serialize(quantityTakeoffElements, _jsonSerializerOptions);
-        }
-
-        // For larger collections, process in batches and combine results
-        using var memoryStream = new MemoryStream();
-        using var writer = new Utf8JsonWriter(memoryStream);
-
-        // Start JSON array
-        writer.WriteStartArray();
-
-        // Process in batches
-        for (int i = 0; i < quantityTakeoffElements.Count; i += batchSize)
-        {
-            var batch = quantityTakeoffElements.Skip(i).Take(batchSize);
-
-            foreach (var item in batch)
-            {
-                // Serialize each item directly to the writer
-                JsonSerializer.Serialize(writer, item, _jsonSerializerOptions);
-            }
-        }
-
-        // End JSON array
-        writer.WriteEndArray();
-        writer.Flush();
-
-        // Convert to string
-        return Encoding.UTF8.GetString(memoryStream.ToArray());
-    }
-
     [Trace]
     private async Task<string> UploadToConnectFileService(string spaceId, string folderId, string trimbleConnectModelId, string jsonContent)
     {
         try
         {
+            _logger.LogInformation("Starting file upload to service for ModelReferenceId: {ModelReferenceId}, content size: {ContentSizeMB:F2}MB", 
+                trimbleConnectModelId, Encoding.UTF8.GetByteCount(jsonContent) / (1024.0 * 1024.0));
+            
             string fileId = await _trimbleFileService.UploadFileAsync(
                 spaceId,
                 folderId,
@@ -266,21 +405,28 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 System.Text.Encoding.UTF8.GetBytes(jsonContent)
             );
 
+            _logger.LogInformation("Completed file upload for ModelReferenceId: {ModelReferenceId}, FileId: {FileId}", 
+                trimbleConnectModelId, fileId);
+                
             return fileId;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error uploading takeoff elements to Trimble File Service: {ex.Message}");
-            throw new Exception("Failed to upload takeoff elements to Trimble File Service.");
+            _logger.LogError(ex, "Error uploading takeoff elements to Trimble File Service for ModelReferenceId: {ModelReferenceId}", 
+                trimbleConnectModelId);
+            throw new Exception($"Failed to upload takeoff elements to Trimble File Service: {ex.Message}", ex);
         }
     }
 
     private Dictionary<int, List<ModelProperties>> ProcessModelProperties(IModel model)
     {
+        var memoryBefore = GetMemoryUsage();
+        _logger.LogDebug("Starting ProcessModelProperties. Memory: {MemoryMB}MB", memoryBefore);
+        
         var result = new ConcurrentDictionary<int, List<ModelProperties>>();
         var lockObject = new object(); // Lock object for synchronization
 
-        // Run the three methods in parallel
+        // Run the methods in parallel
         var productPsetPropertiesTask = Task.Run(() => GetProductPsetProperties(model));
         var referenceObjectPropertiesTask = Task.Run(() => GetReferenceObjectProperties(model));
         var layerPropertiesTask = Task.Run(() => GetLayerProperties(model));
@@ -294,6 +440,10 @@ public class ModelConversionProcessor : IModelConversionProcessor
         var referenceObjectProperties = referenceObjectPropertiesTask.Result;
         var layerProperties = layerPropertiesTask.Result;
         var otherProperties = otherPropertiesTask.Result;
+
+        var memoryAfterProperties = GetMemoryUsage();
+        _logger.LogDebug("Property dictionaries created. Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)", 
+            memoryAfterProperties, memoryAfterProperties - memoryBefore);
 
         // Aggregate properties by entity ID
         otherProperties.AsParallel().ForAll(binding =>
@@ -331,6 +481,10 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 }
             }
         });
+
+        var memoryAfterMerge = GetMemoryUsage();
+        _logger.LogDebug("Property merge completed. Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)", 
+            memoryAfterMerge, memoryAfterMerge - memoryAfterProperties);
 
         return result
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);

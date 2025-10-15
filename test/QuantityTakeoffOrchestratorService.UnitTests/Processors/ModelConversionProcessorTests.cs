@@ -281,7 +281,7 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
         }
 
         [Fact]
-        public void Generate3DTakeoffElementsJson_WithValidModel_ReturnsJsonString()
+        public async Task Generate3DTakeoffElementsJson_WithValidModel_ReturnsJsonString()
         {
             // Arrange
             var modelId = "test-model-id";
@@ -301,18 +301,19 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
                 _mockModelMetaDataProcessor);
 
             // Act
-            var result = testProcessor.TestGenerate3DTakeoffElementsJson(modelId, mockModel);
+            var result = await testProcessor.TestGenerate3DTakeoffElementsJson(modelId, mockModel);
 
             // Assert
-            // Even with an empty model, we should get a valid JSON string (empty array)
-            result.Should().NotBeNullOrEmpty();
+            result.jsonContent.Should().NotBeNullOrEmpty();
+            result.byteSize.Should().BeGreaterThan(0);
+            
             // Verify it's a valid JSON string
-            Action action = () => JsonDocument.Parse(result);
+            Action action = () => JsonDocument.Parse(result.jsonContent);
             action.Should().NotThrow();
         }
 
         [Fact]
-        public void Generate3DTakeoffElementsJson_WithNullModel_ReturnsEmptyString()
+        public async Task Generate3DTakeoffElementsJson_WithNullModel_ReturnsEmptyString()
         {
             // Arrange
             var modelId = "test-model-id";
@@ -326,10 +327,11 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
                 _mockModelMetaDataProcessor);
 
             // Act
-            var result = testProcessor.TestGenerate3DTakeoffElementsJson(modelId, null);
+            var result = await testProcessor.TestGenerate3DTakeoffElementsJson(modelId, null);
 
             // Assert
-            result.Should().BeEmpty();
+            result.jsonContent.Should().BeEmpty();
+            result.byteSize.Should().Be(0);
         }
 
         [Fact]
@@ -466,12 +468,13 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
                 return (Task<IModel>)method.Invoke(this, new object[] { token, modelId, versionId });
             }
 
-            public string TestGenerate3DTakeoffElementsJson(string modelId, IModel model)
+            public async Task<(string jsonContent, long byteSize)> TestGenerate3DTakeoffElementsJson(string modelId, IModel model)
             {
-                // Use reflection to call the private Generate3DTakeoffElementsJson method
-                var method = typeof(ModelConversionProcessor).GetMethod("Generate3DTakeoffElementsJson",
+                // Use reflection to call the private Generate3DTakeoffElementsJsonAsync method
+                var method = typeof(ModelConversionProcessor).GetMethod("Generate3DTakeoffElementsJsonAsync",
                     BindingFlags.NonPublic | BindingFlags.Instance);
-                return (string)method.Invoke(this, new object[] { modelId, model });
+                
+                return await ((Task<(string, long)>)method.Invoke(this, new object[] { modelId, model }));
             }
 
             public (string, string) TestGetFileFormatAndCommonType(string className)
