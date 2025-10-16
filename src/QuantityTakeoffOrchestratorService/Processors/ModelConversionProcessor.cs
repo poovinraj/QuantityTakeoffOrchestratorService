@@ -63,8 +63,9 @@ public class ModelConversionProcessor : IModelConversionProcessor
     public async Task<ModelProcessingResult> ConvertTrimBimModelAndUploadToFileService(ModelConversionRequest conversionRequest)
     {
         var stopwatch = Stopwatch.StartNew();
-        var memoryUsageStart = GetMemoryUsage();
-        
+        GC.Collect(); // Force garbage collection
+
+        var memoryUsageStart = GetMemoryUsage();        
         try
         {
             // Log model details to New Relic for tracing
@@ -101,37 +102,48 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 conversionRequest.TrimbleConnectModelId);
             
             // Use the stream-based version to prevent memory issues
-            var (jsonStream, jsonByteSize, tempFilePath) = await Generate3DTakeoffElementsJsonAsync(
+            var tempJsonFilePath = await Generate3DTakeoffElementsJsonAsync(
                 conversionRequest.TrimbleConnectModelId,
                 model);
 
             var memoryAfterJsonGeneration = GetMemoryUsage();
-            _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 4 - Memory after JSON generation: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB), JSON size: {JsonSizeMB:F2}MB for ModelReferenceId: {ModelReferenceId}",
-                memoryAfterJsonGeneration, memoryAfterJsonGeneration - memoryAfterModelLoad, jsonByteSize / (1024.0 * 1024.0), conversionRequest.TrimbleConnectModelId);
+            _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 4 - Memory after JSON generation: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB), for ModelReferenceId: {ModelReferenceId}",
+                memoryAfterJsonGeneration, memoryAfterJsonGeneration - memoryAfterModelLoad,  conversionRequest.TrimbleConnectModelId);
 
             // Step 3: Upload processed model to file service
             string fileId;
             try
             {
-                fileId = await UploadToConnectFileService(
-                    conversionRequest.SpaceId,
-                    conversionRequest.FolderId,
-                    conversionRequest.TrimbleConnectModelId,
-                    jsonStream);
+                // Get the file size
+                var fileInfo = new FileInfo(tempJsonFilePath);
+                long jsonByteSize = fileInfo.Length;
+                
+                _logger.LogInformation("Uploading JSON to file service for ModelReferenceId: {ModelReferenceId}, File size: {JsonSizeMB:F2}MB",
+                        conversionRequest.TrimbleConnectModelId, jsonByteSize / (1024.0 * 1024.0));
+
+                // Read the file back into memory in a controlled manner for upload
+                using (var jsonStream = fileInfo.OpenRead())
+                {
+                    fileId = await UploadToConnectFileService(
+                        conversionRequest.SpaceId,
+                        conversionRequest.FolderId,
+                        conversionRequest.TrimbleConnectModelId,
+                        jsonStream);
+                    jsonStream.Close();
+                }
+                fileInfo = null;
             }
             finally
             {
-                jsonStream.Dispose();
-
-                if(!string.IsNullOrEmpty(tempFilePath) && File.Exists(tempFilePath))
+                if(!string.IsNullOrEmpty(tempJsonFilePath) && File.Exists(tempJsonFilePath))
                 {
                     try
                     {
-                        File.Delete(tempFilePath);
+                        File.Delete(tempJsonFilePath);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Failed to delete temporary JSON file: {FilePath}", tempFilePath);
+                        _logger.LogWarning(ex, "Failed to delete temporary JSON file: {FilePath}", tempJsonFilePath);
                         throw;
                     }
                 }
@@ -155,6 +167,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
 
             model = null; // Release model from memory
             GC.Collect(); // Request garbage collection
+            GC.WaitForFullGCComplete();
 
             var memoryAfterModelRelease = GetMemoryUsage();
             _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 6 - Memory after model release: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB) for ModelReferenceId: {ModelReferenceId}",
@@ -167,6 +180,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 uniquePropertyDefinitions,
                 conversionRequest.CustomerId);
 
+            uniquePropertyDefinitions = null; // Release from memory
             var finalMemory = GetMemoryUsage();
             stopwatch.Stop();
 
@@ -258,23 +272,23 @@ public class ModelConversionProcessor : IModelConversionProcessor
     }
 
     [Trace]
-    private async Task<(Stream jsonStream, long byteSize, string tempFilePath)> Generate3DTakeoffElementsJsonAsync(string trimbleConnectModelId, IModel model)
+    private async Task< string> Generate3DTakeoffElementsJsonAsync(string trimbleConnectModelId, IModel model)
     {
         if (model is null)
         {
-            return (Stream.Null, 0, string.Empty);
+            return (string.Empty);
         }
 
         try
         {
             var memoryBeforeProcessing = GetMemoryUsage();
-            _logger.LogInformation("Starting property processing for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB", 
+            _logger.LogInformation("Generate3DTakeoffElementsJson : Starting property processing for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB", 
                 trimbleConnectModelId, memoryBeforeProcessing);
 
             var propertyMappings = ProcessModelProperties(model);
             
             var memoryAfterPropertyMapping = GetMemoryUsage();
-            _logger.LogInformation("Property mappings completed for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)", 
+            _logger.LogInformation("Generate3DTakeoffElementsJson: Property mappings completed for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)", 
                 trimbleConnectModelId, memoryAfterPropertyMapping, memoryAfterPropertyMapping - memoryBeforeProcessing);
 
             var quantityTakeoffElements = FetchBasicTakeOffElements(model, trimbleConnectModelId).Select(element =>
@@ -287,7 +301,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
             }).ToList();
 
             var memoryAfterElementFetch = GetMemoryUsage();
-            _logger.LogInformation("Total takeoff elements processed: {Count} for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)",
+            _logger.LogInformation("Generate3DTakeoffElementsJson: Total takeoff elements processed: {Count} for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)",
                 quantityTakeoffElements.Count, trimbleConnectModelId, memoryAfterElementFetch, memoryAfterElementFetch - memoryAfterPropertyMapping);
 
             // Create a temporary file to store the JSON data
@@ -295,7 +309,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
             
             try
             {
-                _logger.LogInformation("Starting JSON serialization to temp file for ModelReferenceId: {ModelReferenceId}", 
+                _logger.LogInformation("Generate3DTakeoffElementsJson: Starting JSON serialization to temp file for ModelReferenceId: {ModelReferenceId}", 
                     trimbleConnectModelId);
                 
                 // Using a FileStream for the JSON output to avoid memory issues
@@ -310,20 +324,10 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 GC.Collect(); // Force garbage collection
                 
                 var memoryAfterSerialization = GetMemoryUsage();
-                _logger.LogInformation("JSON serialization completed for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)", 
+                _logger.LogInformation("Generate3DTakeoffElementsJson: JSON serialization completed for ModelReferenceId: {ModelReferenceId}, Memory: {MemoryMB}MB (Δ {MemoryDeltaMB}MB)", 
                     trimbleConnectModelId, memoryAfterSerialization, memoryAfterSerialization - memoryAfterElementFetch);
-
-                // Get the file size
-                var fileInfo = new FileInfo(tempFilePath);
-                long jsonByteSize = fileInfo.Length;
-
-                // Read the file back into memory in a controlled manner for upload
-                var jsonStream = fileInfo.OpenRead();
                 
-                _logger.LogInformation("Generated JSON file size: {SizeMB:F2}MB for ModelReferenceId: {ModelReferenceId}",
-                    jsonByteSize / (1024.0 * 1024.0), trimbleConnectModelId);
-                
-                return (jsonStream, jsonByteSize, tempFilePath);
+                return  tempFilePath;
             }
             catch
             {
@@ -337,7 +341,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to delete temporary JSON file: {FilePath}", tempFilePath);
+                    _logger.LogWarning(ex, "Generate3DTakeoffElementsJson: Failed to delete temporary JSON file: {FilePath}", tempFilePath);
                 }
 
                 throw;
