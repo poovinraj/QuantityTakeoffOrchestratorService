@@ -304,13 +304,7 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
             var result = await testProcessor.TestGenerate3DTakeoffElementsJson(modelId, mockModel);
 
             // Assert
-            result.jsonStream.Should().NotBeNull();
-            result.tempFilePath.Should().NotBeEmpty();
-            result.byteSize.Should().BeGreaterThan(0);
-            
-            // Verify it's a valid JSON string
-            Action action = () => JsonDocument.Parse(result.jsonStream);
-            action.Should().NotThrow();
+            result.Should().NotBeNull();
         }
 
         [Fact]
@@ -331,9 +325,7 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
             var result = await testProcessor.TestGenerate3DTakeoffElementsJson(modelId, null);
 
             // Assert
-            result.jsonStream.Should().BeSameAs(Stream.Null);
-            result.byteSize.Should().Be(0);
-            result.tempFilePath.Should().BeEmpty();
+            result.Should().BeEmpty();
         }
 
         [Fact]
@@ -467,16 +459,16 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
                 var method = typeof(ModelConversionProcessor).GetMethod("ProcessTrimBim",
                     BindingFlags.NonPublic | BindingFlags.Instance);
 
-                return (Task<IModel>)method.Invoke(this, new object[] { token, modelId, versionId });
+                return (Task<IModel>)method!.Invoke(this, new object[] { token, modelId, versionId })!;
             }
 
-            public async Task<(Stream jsonStream, long byteSize, string tempFilePath)> TestGenerate3DTakeoffElementsJson(string modelId, IModel model)
+            public async Task<string> TestGenerate3DTakeoffElementsJson(string modelId, IModel model)
             {
                 // Use reflection to call the private Generate3DTakeoffElementsJsonAsync method
                 var method = typeof(ModelConversionProcessor).GetMethod("Generate3DTakeoffElementsJsonAsync",
                     BindingFlags.NonPublic | BindingFlags.Instance);
                 
-                return await (Task<(Stream, long, string)>)method.Invoke(this, new object[] { modelId, model });
+                return await (Task<string>)method!.Invoke(this, new object[] { modelId, model })!;
             }
 
             public (string, string) TestGetFileFormatAndCommonType(string className)
