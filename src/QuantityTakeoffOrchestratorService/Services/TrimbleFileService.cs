@@ -56,11 +56,11 @@ public class TrimbleFileService : ITrimbleFileService
     /// <param name="fileName">Specifies the name of the file being uploaded.</param>
     /// <param name="fileBytes">Holds the byte array of the file content to be uploaded.</param>
     /// <returns>Returns the identifier of the uploaded file or null if the upload fails.</returns>
-    public async Task<string> UploadFileAsync(string spaceId, string folderId, string fileName, byte[] fileBytes)
+    public async Task<string> UploadFileAsync(string spaceId, string folderId, string fileName, Stream dataStream)
     {
         try
         {
-            var isMultipartUpload = fileBytes.Length > chunkSize;
+            var isMultipartUpload = dataStream.Length > chunkSize;
             var spaceIdGuid = Guid.Parse(spaceId);
             var uploadDetails = await CreateFileUpload(spaceIdGuid, Guid.Parse(folderId), fileName, isMultipartUpload);
 
@@ -68,7 +68,7 @@ public class TrimbleFileService : ITrimbleFileService
             var fileId = uploadDetails.FileInputUploadDetails.FileId;
             var uploadId = uploadDetails.Id;
 
-            await UploadFileToTheURL(spaceIdGuid, uploadId, fileBytes, uploadURL);
+            await UploadFileToTheURL(spaceIdGuid, uploadId, dataStream, uploadURL);
             return fileId.ToString();
         }
         catch (Exception ex)
@@ -112,25 +112,24 @@ public class TrimbleFileService : ITrimbleFileService
     /// </summary>
     /// <param name="spaceId">Identifies the specific space where the file will be uploaded.</param>
     /// <param name="uploadId">Serves as a unique identifier for the upload process.</param>
-    /// <param name="fileBytes">Contains the actual byte data of the file to be uploaded.</param>
+    /// <param name="dataStream"></param>
     /// <param name="uploadUrl">Specifies the URL to which the file will be uploaded.</param>
     /// <returns>Indicates whether the file upload was successful or not.</returns>
-    private async Task<bool> UploadFileToTheURL(Guid spaceId, Guid uploadId, byte[] fileBytes, string uploadUrl)
+    private async Task<bool> UploadFileToTheURL(Guid spaceId, Guid uploadId, Stream dataStream, string uploadUrl)
     {
         try
         {
-            using (var stream = new MemoryStream(fileBytes))
-            {
-                UploadRequest uploadRequest = new UploadRequest
-                {
-                    SpaceId = spaceId,
-                    UploadId = uploadId,
-                    Url = uploadUrl,
-                    Stream = stream
-                };
 
-                await client.Files.Upload(uploadRequest, chunkSize: 50 * 1024 * 1024, maxConcurrentRequests: 4);
-            }
+            UploadRequest uploadRequest = new UploadRequest
+            {
+                SpaceId = spaceId,
+                UploadId = uploadId,
+                Url = uploadUrl,
+                Stream = dataStream
+            };
+
+            await client.Files.Upload(uploadRequest, chunkSize: 50 * 1024 * 1024, maxConcurrentRequests: 4);
+
             return true;
         }
         catch (Exception ex)

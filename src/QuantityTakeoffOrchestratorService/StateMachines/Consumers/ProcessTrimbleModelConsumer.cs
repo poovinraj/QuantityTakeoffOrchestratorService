@@ -59,19 +59,26 @@ public class ProcessTrimbleModelConsumer : IConsumer<IProcessTrimBimModel>
                 throw new InvalidOperationException("No access token was provided or conversion from Base64 failed");
             }
 
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
             // Create the conversion request
             var conversionRequest = CreateModelConversionRequest(context.Message, accessToken);
 
             // Process the model conversion
             var result = await _modelConversionProcessor.ConvertTrimBimModelAndUploadToFileService(conversionRequest);
+            stopwatch.Stop();
 
             // Handle the result
             if (result.IsConversionSuccessful)
             {
+                _logger.LogInformation("Model conversion completed in {ElapsedMilliseconds} ms for JobModelId: {JobModelId}",
+                    stopwatch.ElapsedMilliseconds, context.Message.JobModelId);
                 await HandleSuccessfulConversion(context, result);
             }
             else
             {
+                _logger.LogWarning("Model conversion failed after {ElapsedMilliseconds} ms for JobModelId: {JobModelId}. Error: {ErrorMessage}",
+                    stopwatch.ElapsedMilliseconds, context.Message.JobModelId, result.ErrorMessage);
                 await HandleFailedConversion(context, result.ErrorMessage);
             }
         }
