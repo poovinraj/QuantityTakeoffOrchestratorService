@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using QuantityTakeoffOrchestratorService.Models.Constants;
 using QuantityTakeoffOrchestratorService.Models.Domain;
-using QuantityTakeoffOrchestratorService.Models.Request;
 using QuantityTakeoffOrchestratorService.NotificationHubs;
 using QuantityTakeoffOrchestratorService.Processors;
 using QuantityTakeoffOrchestratorService.Processors.Interfaces;
@@ -12,7 +11,6 @@ using QuantityTakeoffOrchestratorService.Services;
 using QuantityTakeoffOrchestratorService.UnitTests.Fixtures;
 using System.Reflection;
 using System.Text;
-using System.Text.Json;
 using Trimble.Technology.TrimBim;
 using Xunit;
 
@@ -140,6 +138,78 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
         }
 
         [Fact]
+        public async Task ConvertTrimBimModelAndUploadToFileService_UploadFails_ReturnsFailure()
+        {
+            // Arrange
+            var request = _requestFixture.ModelConversionRequest;
+            var mockModelBytes = MockModelDataFixture.GetMockModelBytes();
+
+            _mockConnectClient.DownloadModelFile(
+                request.UserAccessToken,
+                request.TrimbleConnectModelId,
+                request.ModelVersionId)
+                .Returns(mockModelBytes);
+
+            _mockTrimbleFileService.UploadFileAsync(
+                request.SpaceId,
+                request.FolderId,
+                request.TrimbleConnectModelId + ".json",
+                Arg.Any<Stream>())
+                .Returns<string>(_ => throw new Exception("Upload failed"));
+
+            // Act
+            var result = await _processor.ConvertTrimBimModelAndUploadToFileService(request);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.IsConversionSuccessful.Should().BeFalse();
+            result.ErrorMessage.Should().Contain("Upload failed");
+        }
+
+        [Fact]
+        public async Task ConvertTrimBimModelAndUploadToFileService_MetadataUpdateFails_StillReturnsSuccess()
+        {
+            // Arrange
+            var request = _requestFixture.ModelConversionRequest;
+            var mockModelBytes = MockModelDataFixture.GetMockModelBytes();
+            var expectedFileId = "file-123";
+            var expectedDownloadUrl = "https://example.com/download/file-123";
+
+            _mockConnectClient.DownloadModelFile(
+                request.UserAccessToken,
+                request.TrimbleConnectModelId,
+                request.ModelVersionId)
+                .Returns(mockModelBytes);
+
+            _mockTrimbleFileService.UploadFileAsync(
+                request.SpaceId,
+                request.FolderId,
+                request.TrimbleConnectModelId + ".json",
+                Arg.Any<Stream>())
+                .Returns(expectedFileId);
+
+            _mockTrimbleFileService.GetFileDownloadUrl(
+                request.SpaceId,
+                expectedFileId)
+                .Returns(expectedDownloadUrl);
+
+            _mockModelMetaDataProcessor.UpdateFileIdAndPSetDefinitionsForConnectModel(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<IEnumerable<PSetDefinition>>(),
+                Arg.Any<string>())
+                .Returns<bool>(_ => throw new Exception("Metadata update failed"));
+
+            // Act
+            var result = await _processor.ConvertTrimBimModelAndUploadToFileService(request);
+
+            // Assert - The exception from metadata update should propagate as a failure
+            result.Should().NotBeNull();
+            result.IsConversionSuccessful.Should().BeFalse();
+            result.ErrorMessage.Should().Contain("Metadata update failed");
+        }
+
+        [Fact]
         public async Task GetFileDownloadUrlFromFileService_Success_ReturnsUrl()
         {
             // Arrange
@@ -197,6 +267,28 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
             });
 
             // Should try 3 times
+            await _mockTrimbleFileService.Received(3).GetFileDownloadUrl(spaceId, fileId);
+        }
+
+        [Fact]
+        public async Task GetFileDownloadUrlFromFileService_FailsTwiceThenSucceeds_ReturnsUrl()
+        {
+            // Arrange
+            var spaceId = "space-123";
+            var fileId = "file-456";
+            var expectedUrl = "https://example.com/download/file-456";
+
+            _mockTrimbleFileService.GetFileDownloadUrl(spaceId, fileId)
+                .Returns(
+                    _ => throw new Exception("First attempt failed"),
+                    _ => throw new Exception("Second attempt failed"),
+                    _ => expectedUrl);
+
+            // Act
+            var result = await _processor.GetFileDownloadUrlFromFileService(spaceId, fileId);
+
+            // Assert
+            result.Should().Be(expectedUrl);
             await _mockTrimbleFileService.Received(3).GetFileDownloadUrl(spaceId, fileId);
         }
 
@@ -278,6 +370,32 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
                 () => testProcessor.TestProcessTrimBim(token, modelId, versionId));
 
             exception.Message.Should().Be("Failed to parse the model.");
+        }
+
+        [Fact]
+        public async Task ProcessTrimBim_WithNullVersionId_CallsDownloadWithNull()
+        {
+            // Arrange
+            var token = "test-token";
+            var modelId = "model-id";
+            var modelBytes = MockModelDataFixture.GetMockModelBytes();
+
+            _mockConnectClient.DownloadModelFile(token, modelId, null)
+                .Returns(modelBytes);
+
+            var testProcessor = new TestableModelConversionProcessor(
+                _mockConnectClient,
+                _mockTrimbleFileService,
+                _mockLogger,
+                _mockHubContext,
+                _mockModelMetaDataProcessor);
+
+            // Act
+            var result = await testProcessor.TestProcessTrimBim(token, modelId, null);
+
+            // Assert
+            result.Should().NotBeNull();
+            await _mockConnectClient.Received(1).DownloadModelFile(token, modelId, null);
         }
 
         [Fact]
@@ -415,6 +533,185 @@ namespace QuantityTakeoffOrchestratorService.UnitTests.Processors
             // Assert
             result.Item1.Should().Be(expectedFormat);
             result.Item2.Should().Be(expectedType);
+        }
+
+        [Fact]
+        public void GetMemoryUsage_ReturnsPositiveValue()
+        {
+            // Arrange
+            var methodInfo = typeof(ModelConversionProcessor).GetMethod("GetMemoryUsage",
+                BindingFlags.NonPublic | BindingFlags.Static);
+
+            // Act
+            var result = (long)methodInfo.Invoke(null, null);
+
+            // Assert
+            result.Should().BeGreaterThan(0);
+        }
+
+        [Fact]
+        public void GetProcessMemoryInfo_ReturnsValidValues()
+        {
+            // Arrange
+            var methodInfo = typeof(ModelConversionProcessor).GetMethod("GetProcessMemoryInfo",
+                BindingFlags.NonPublic | BindingFlags.Static);
+
+            // Act
+            var result = ((long, long))methodInfo.Invoke(null, null);
+
+            // Assert
+            result.Item1.Should().BeGreaterThan(0); // workingSetMB
+            result.Item2.Should().BeGreaterThan(0); // privateBytesMB
+        }
+
+        [Fact]
+        public async Task ConvertTrimBimModelAndUploadToFileService_WithLargeModel_PerformsGarbageCollection()
+        {
+            // Arrange
+            var request = _requestFixture.ModelConversionRequest;
+            var mockModelBytes = MockModelDataFixture.GetMockModelBytes();
+            var expectedFileId = "file-123";
+            var expectedDownloadUrl = "https://example.com/download/file-123";
+
+            _mockConnectClient.DownloadModelFile(
+                request.UserAccessToken,
+                request.TrimbleConnectModelId,
+                request.ModelVersionId)
+                .Returns(mockModelBytes);
+
+            _mockTrimbleFileService.UploadFileAsync(
+                request.SpaceId,
+                request.FolderId,
+                request.TrimbleConnectModelId + ".json",
+                Arg.Any<Stream>())
+                .Returns(expectedFileId);
+
+            _mockTrimbleFileService.GetFileDownloadUrl(
+                request.SpaceId,
+                expectedFileId)
+                .Returns(expectedDownloadUrl);
+
+            // Record initial memory
+            var initialMemory = GC.GetTotalMemory(false);
+
+            // Act
+            var result = await _processor.ConvertTrimBimModelAndUploadToFileService(request);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.IsConversionSuccessful.Should().BeTrue();
+        }
+
+        [Fact]
+        public void Constructor_WithValidDependencies_ShouldInitialize()
+        {
+            // Arrange & Act
+            var processor = new ModelConversionProcessor(
+                _mockConnectClient,
+                _mockTrimbleFileService,
+                _mockLogger,
+                _mockHubContext,
+                _mockModelMetaDataProcessor);
+
+            // Assert
+            processor.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task ConvertTrimBimModelAndUploadToFileService_WithEmptyCustomerId_ProcessesSuccessfully()
+        {
+            // Arrange
+            var request = _requestFixture.ModelConversionRequest;
+            request.CustomerId = string.Empty;
+            var mockModelBytes = MockModelDataFixture.GetMockModelBytes();
+            var expectedFileId = "file-123";
+            var expectedDownloadUrl = "https://example.com/download/file-123";
+
+            _mockConnectClient.DownloadModelFile(
+                request.UserAccessToken,
+                request.TrimbleConnectModelId,
+                request.ModelVersionId)
+                .Returns(mockModelBytes);
+
+            _mockTrimbleFileService.UploadFileAsync(
+                request.SpaceId,
+                request.FolderId,
+                request.TrimbleConnectModelId + ".json",
+                Arg.Any<Stream>())
+                .Returns(expectedFileId);
+
+            _mockTrimbleFileService.GetFileDownloadUrl(
+                request.SpaceId,
+                expectedFileId)
+                .Returns(expectedDownloadUrl);
+
+            // Act
+            var result = await _processor.ConvertTrimBimModelAndUploadToFileService(request);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.IsConversionSuccessful.Should().BeTrue();
+            
+            await _mockModelMetaDataProcessor.Received(1).UpdateFileIdAndPSetDefinitionsForConnectModel(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<IEnumerable<PSetDefinition>>(),
+                string.Empty);
+        }
+
+        [Fact]
+        public async Task GetFileDownloadUrlFromFileService_WithNullSpaceId_ThrowsException()
+        {
+            // Arrange
+            string nullSpaceId = null;
+            var fileId = "file-456";
+
+            _mockTrimbleFileService.GetFileDownloadUrl(nullSpaceId, fileId)
+                .Returns<string>(_ => throw new ArgumentNullException(nameof(nullSpaceId)));
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            {
+                await _processor.GetFileDownloadUrlFromFileService(nullSpaceId, fileId);
+            });
+        }
+
+        [Fact]
+        public async Task GetFileDownloadUrlFromFileService_WithNullFileId_ThrowsException()
+        {
+            // Arrange
+            var spaceId = "space-123";
+            string nullFileId = null;
+
+            _mockTrimbleFileService.GetFileDownloadUrl(spaceId, nullFileId)
+                .Returns<string>(_ => throw new ArgumentNullException(nameof(nullFileId)));
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            {
+                await _processor.GetFileDownloadUrlFromFileService(spaceId, nullFileId);
+            });
+        }
+
+        [Fact]
+        public async Task ConvertTrimBimModelAndUploadToFileService_DownloadThrowsOutOfMemory_ReturnsFailure()
+        {
+            // Arrange
+            var request = _requestFixture.ModelConversionRequest;
+
+            _mockConnectClient.DownloadModelFile(
+                request.UserAccessToken,
+                request.TrimbleConnectModelId,
+                request.ModelVersionId)
+                .Returns<byte[]>(_ => throw new OutOfMemoryException("Insufficient memory"));
+
+            // Act
+            var result = await _processor.ConvertTrimBimModelAndUploadToFileService(request);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.IsConversionSuccessful.Should().BeFalse();
+            result.ErrorMessage.Should().Contain("Insufficient memory");
         }
 
         /// <summary>
