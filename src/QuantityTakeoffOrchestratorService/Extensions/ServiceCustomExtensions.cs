@@ -292,13 +292,13 @@ public static class ServiceCustomExtensions
             {
                 cfg.Host(azureServiceBusConnectionString);
 
+                var autoDeleteOnIdleInMinutes = webAppBuilder.Configuration.GetSection("AzureServiceBusSettings")
+                                .GetValue<double>("AutoDeleteOnIdleInMinutes");
+                Defaults.AutoDeleteOnIdle = TimeSpan.FromMinutes(autoDeleteOnIdleInMinutes);
+
                 //topics and endpoint (queues) custom formatters for Azure Service Bus localhost development
                 if (isUserNamePrefixRequired)
                 {
-                    var autoDeleteOnIdleInMinutes = webAppBuilder.Configuration.GetSection("AzureServiceBusSettings")
-                                .GetValue<double>("AutoDeleteOnIdleInMinutes");
-                    Defaults.AutoDeleteOnIdle = TimeSpan.FromMinutes(autoDeleteOnIdleInMinutes);
-
                     // configure custom endpoint name formatter to prefix the user name to the queue names
                     mt.SetEndpointNameFormatter(new UserNameBasedQueueTopologyFormatter());
 
