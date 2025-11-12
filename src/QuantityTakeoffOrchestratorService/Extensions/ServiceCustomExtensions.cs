@@ -18,6 +18,7 @@
 using Azure.Identity;
 using Azure.Messaging.ServiceBus.Administration;
 using MassTransit;
+using MassTransit.AzureServiceBusTransport;
 using Mep.Platform.Authorization.Middleware.Enums;
 using Mep.Platform.Authorization.Middleware.Extensions;
 using Mep.Platform.Authorization.Middleware.Options;
@@ -290,6 +291,10 @@ public static class ServiceCustomExtensions
             mt.UsingAzureServiceBus((context, cfg) =>
             {
                 cfg.Host(azureServiceBusConnectionString);
+
+                var autoDeleteOnIdleInMinutes = webAppBuilder.Configuration.GetSection("AzureServiceBusSettings")
+                                .GetValue<double>("AutoDeleteOnIdleInMinutes");
+                Defaults.AutoDeleteOnIdle = TimeSpan.FromMinutes(autoDeleteOnIdleInMinutes);
 
                 //topics and endpoint (queues) custom formatters for Azure Service Bus localhost development
                 if (isUserNamePrefixRequired)

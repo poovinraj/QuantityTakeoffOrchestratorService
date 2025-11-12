@@ -20,4 +20,9 @@ public class AzureServiceBusSettings
     /// Should be enabled in local development and disabled in shared environments.
     /// </summary>
     public bool IsUserBasedTransportNamingEnabled { get; set; }
+
+    /// <summary>
+    ///     Property to set auto delete on idle in minutes for queues and topics on service bus
+    /// </summary>
+    public double AutoDeleteOnIdleInMinutes { get; set; }
 }
