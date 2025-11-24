@@ -70,11 +70,9 @@ var builder = WebApplication.CreateBuilder(args)
         });
 
     })
-    //.AddSwaggerGenWithUiBearerToken()
     .AddFluentValidationToSwagger()
     .UsePlatformHealthCheck()
-    .UsePlatformMonitoring()
-    .UseContainers<DockerService>();
+    .UsePlatformMonitoring();
 
 var app = builder.Build();
 app

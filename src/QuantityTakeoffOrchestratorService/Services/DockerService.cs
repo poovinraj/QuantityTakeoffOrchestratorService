@@ -33,6 +33,8 @@ public class DockerService : IHostedService
     private readonly List<DockerContainer> _containers = new();
     private readonly IMongoDbService _mongoDbService;
 
+    private readonly IContainer _mongoContainer;
+
     /// <summary>
     ///     Constructor.
     /// </summary>
@@ -41,19 +43,15 @@ public class DockerService : IHostedService
         _mongoDbService = serviceProvider.GetRequiredService<IMongoDbService>();
 
         var nameId = Guid.NewGuid().ToString()[..5];
-
-        //Note: This always uses the latest version of the mongodb
-        //this can be modified as per our need (that is specific version of mongodb)
-        //example .WithImage("mongo:6.0.8-rc0-windowsservercore") or WithImage("mongo:7.0-rc")
-        var redis = new ContainerBuilder()
-              .WithImage("mongo")
+        _mongoContainer = new ContainerBuilder()
+              .WithImage("mongo:7.0.19")
               .WithName($"mongo-{nameId}")
-              .WithPortBinding("27017")
-              .WithExposedPort(27017)
+              .WithPortBinding("27020", "27017")
+              .WithCommand("--replSet", "rs0")
               .WithWaitStrategy(Wait.ForUnixContainer())
               .Build()!;
 
-        _containers.Add((DockerContainer)redis);
+        _containers.Add((DockerContainer)_mongoContainer);
     }
 
     /// <summary>
@@ -61,12 +59,34 @@ public class DockerService : IHostedService
     /// </summary>
     public bool Running { get; set; }
 
+    /// <summary>
+    ///     Returns the mongo db database instance
+    /// </summary>
+    /// <returns></returns>
+    public IMongoDatabase GetDatabase()
+    {
+        return _mongoDbService.Database;
+    }
+
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         try
         {
             await _containers.StartAllAsync(cancellationToken);
+
+            // Adding a delays to allow some additional time for the server to initialize / be ready before we run the script below and again after.
+            // Without adding a delay the mongo instance would not seem to be correctly configured, all tests would timeout. The issue appears to manifest
+            // more easily on the build server. No errors have are reported locally with the delays.
+            await Task.Delay(5000);
+            await _mongoContainer.ExecAsync(new List<string>
+                       {
+                           "/bin/sh",
+                           "-c",
+                           $"mongosh --quiet --eval 'rs.initiate()'"
+                       });
+            await Task.Delay(5000);
+
             Running = true;
         }
         catch (Exception ex)
