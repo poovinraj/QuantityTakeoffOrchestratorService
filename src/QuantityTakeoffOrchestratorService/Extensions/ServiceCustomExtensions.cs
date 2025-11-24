@@ -258,15 +258,15 @@ public static class ServiceCustomExtensions
         }
 
         ////mass transit queue name formatter for Azure Service Bus localhost development
-        //if (isUserNamePrefixRequired)
-        //{
-        //    webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
-        //        new UserNameBasedQueueTopologyFormatter());
-        //}
+        if (isUserNamePrefixRequired)
+        {
+            webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
+                new UserNameBasedQueueTopologyFormatter());
+        }
 
         _ = webAppBuilder.Services.AddMassTransit(mt =>
         {
-            mt.SetKebabCaseEndpointNameFormatter();
+            //mt.SetKebabCaseEndpointNameFormatter();
 
             var processTrimbleModelConsumer = mt.AddConsumer<ProcessTrimbleModelConsumer>();
             processTrimbleModelConsumer.Endpoint(e =>
@@ -321,10 +321,24 @@ public static class ServiceCustomExtensions
                             subscriptionConfig.ConcurrentMessageLimit = 1;
                             subscriptionConfig.PrefetchCount = 1;
                             subscriptionConfig.ConfigureConsumer<ProcessTrimbleModelConsumer>(context);
+                            subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
                         });
 
-                    // Prevent auto-configuration of endpoints since we've manually configured them
-                    return;
+
+                    cfg.SubscriptionEndpoint<ITrimBimModelProcessingCompleted>($"{userName}-{nameof(ITrimBimModelProcessingCompleted)}",
+                        subscriptionConfig =>
+                        {
+                            subscriptionConfig.Rule = rule;
+                            subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
+                        });
+
+                    cfg.SubscriptionEndpoint<ITrimBimModelProcessingFailed>($"{userName}-{nameof(ITrimBimModelProcessingFailed)}",
+                        subscriptionConfig =>
+                        {
+                            subscriptionConfig.Rule = rule;
+                            subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
+                        });
+
                 }
 
                 cfg.ConfigureEndpoints(context);
