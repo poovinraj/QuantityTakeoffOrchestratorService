@@ -266,7 +266,7 @@ public static class ServiceCustomExtensions
 
         _ = webAppBuilder.Services.AddMassTransit(mt =>
         {
-            //mt.SetKebabCaseEndpointNameFormatter();
+            mt.SetKebabCaseEndpointNameFormatter();
 
             var processTrimbleModelConsumer = mt.AddConsumer<ProcessTrimbleModelConsumer>();
             processTrimbleModelConsumer.Endpoint(e =>
