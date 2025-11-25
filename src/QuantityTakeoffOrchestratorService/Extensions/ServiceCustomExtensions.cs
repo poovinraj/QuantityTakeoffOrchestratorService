@@ -258,11 +258,11 @@ public static class ServiceCustomExtensions
         }
 
         ////mass transit queue name formatter for Azure Service Bus localhost development
-        //if (isUserNamePrefixRequired)
-        //{
-        //    webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
-        //        new UserNameBasedQueueTopologyFormatter());
-        //}
+        if (isUserNamePrefixRequired)
+        {
+            webAppBuilder.Services.TryAddSingleton<IEndpointNameFormatter>(_ =>
+                new UserNameBasedQueueTopologyFormatter());
+        }
 
         _ = webAppBuilder.Services.AddMassTransit(mt =>
         {
@@ -290,6 +290,7 @@ public static class ServiceCustomExtensions
             // register and configure an azure service bus as a message broker
             mt.UsingAzureServiceBus((context, cfg) =>
             {
+
                 cfg.Host(azureServiceBusConnectionString);
 
                 var autoDeleteOnIdleInMinutes = webAppBuilder.Configuration.GetSection("AzureServiceBusSettings")
@@ -299,18 +300,18 @@ public static class ServiceCustomExtensions
                 //topics and endpoint (queues) custom formatters for Azure Service Bus localhost development
                 if (isUserNamePrefixRequired)
                 {
+                    var userName = Environment.UserName;
                     // configure custom endpoint name formatter to prefix the user name to the queue names
                     mt.SetEndpointNameFormatter(new UserNameBasedQueueTopologyFormatter());
 
                     // Automatically add UserName header to all messages (for filtering)
-                    cfg.ConfigurePublish(x => x.UseExecute(c => { c.Headers.Set("UserName", Environment.UserName); }));
+                    cfg.ConfigurePublish(x => x.UseExecute(c => { c.Headers.Set("UserName", userName); }));
 
                     // set the local based topic name formatter to prefix topics with "local-"
                     cfg.MessageTopology.SetEntityNameFormatter(
                         new LocalBasedTopicTopologyFormatter(cfg.MessageTopology.EntityNameFormatter));
 
-                    var userName = Environment.UserName;
-
+                   
                     // Create filter rule based on username
                     var rule = new CreateRuleOptions($"user-{userName}", new SqlRuleFilter($"UserName = '{userName}'"));
 
@@ -318,13 +319,25 @@ public static class ServiceCustomExtensions
                         subscriptionConfig =>
                         {
                             subscriptionConfig.Rule = rule;
-                            subscriptionConfig.ConcurrentMessageLimit = 1;
-                            subscriptionConfig.PrefetchCount = 1;
                             subscriptionConfig.ConfigureConsumer<ProcessTrimbleModelConsumer>(context);
+                            subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
                         });
 
-                    // Prevent auto-configuration of endpoints since we've manually configured them
-                    return;
+
+                    cfg.SubscriptionEndpoint<ITrimBimModelProcessingCompleted>($"{userName}-{nameof(ITrimBimModelProcessingCompleted)}",
+                        subscriptionConfig =>
+                        {
+                            subscriptionConfig.Rule = rule;
+                            subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
+                        });
+
+                    cfg.SubscriptionEndpoint<ITrimBimModelProcessingFailed>($"{userName}-{nameof(ITrimBimModelProcessingFailed)}",
+                        subscriptionConfig =>
+                        {
+                            subscriptionConfig.Rule = rule;
+                            subscriptionConfig.ConfigureSaga<ModelConversionState>(context);
+                        });
+
                 }
 
                 cfg.ConfigureEndpoints(context);
