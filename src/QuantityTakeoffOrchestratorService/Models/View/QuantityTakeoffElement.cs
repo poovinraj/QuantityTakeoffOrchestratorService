@@ -27,6 +27,12 @@ public class QuantityTakeoffElement
     public ItemType ItemType { get; set; }
 
     /// <summary>
+    /// The original class name from the source 3D model (e.g., "IfcWall", "IfcBeam").
+    /// This preserves the native element type classification from the BIM authoring tool.
+    /// </summary>
+    public string IfcClassName { get; set; }
+
+    /// <summary>
     /// Identifier of the source drawing or 3D model file this element was extracted from.
     /// </summary>
     public string? ReferenceId { get; set; }

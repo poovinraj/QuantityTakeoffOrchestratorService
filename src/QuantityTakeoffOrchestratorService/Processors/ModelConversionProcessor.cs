@@ -766,6 +766,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
                     Id = entityIdx.ToString(),
                     ReferenceId = trimbleConnectModelId,
                     ItemType = GetItemType(entity.ClassName),
+                    IfcClassName = entity.ClassName,
                     Origin = OriginType.Model3D,
                     Count = new QuantityValueView
                     {
