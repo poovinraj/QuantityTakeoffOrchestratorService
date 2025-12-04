@@ -305,7 +305,8 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 quantityTakeoffElements.Count, trimbleConnectModelId, memoryAfterElementFetch, memoryAfterElementFetch - memoryAfterPropertyMapping);
 
             // Create a temporary file to store the JSON data
-            var tempFilePath = Path.GetTempFileName();
+            // Use Path.GetRandomFileName() for security instead of Path.GetTempFileName()
+            var tempFilePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             
             try
             {
