@@ -48,3 +48,9 @@ jobs:
             Automated fix for SonarQube issue.
             - **Jira:** ${{ github.event.inputs.jira_key }}
             - **Issue:** ${{ github.event.inputs.issue_msg }}
+      - name: Resume n8n Workflow
+        if: always() # Ensures n8n is notified even if the fix fails
+        run: |
+          curl -X POST "${{ github.event.inputs.resumeUrl }}" \
+          -H "Content-Type: application/json" \
+          -d '{"status": "completed"}'
