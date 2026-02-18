@@ -14,9 +14,6 @@ on:
       line_numbers:
         description: 'Specific lines identified by SonarQube'
         required: true
-      resumeUrl:
-        description: 'The n8n callback URL'
-        required: false
 
 jobs:
   auto-fix:
