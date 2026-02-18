@@ -28,8 +28,8 @@ jobs:
           fetch-depth: 0
 
       - name: AI Fixer Agent
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        # env:
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           echo "Processing ${{ github.event.inputs.file_path }}..."
           # Logic to call AI and apply fix would go here
