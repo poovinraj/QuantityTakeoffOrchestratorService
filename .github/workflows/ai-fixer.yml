@@ -42,8 +42,7 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
-          # Use the input key you defined in the workflow_dispatch section
-          branch: "fix/${{ github.event.inputs.jira_key }}"
+          branch: "fix/${{ github.event.inputs.jira_key }}" 
           commit-message: "fix: resolve security issue ${{ github.event.inputs.jira_key }}"
           title: "🤖 AI Fix: ${{ github.event.inputs.jira_key }}"
           body: |
