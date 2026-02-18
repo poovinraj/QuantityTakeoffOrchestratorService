@@ -39,10 +39,12 @@ jobs:
           # Example: python fix_script.py "${{ github.event.inputs.issue_msg }}" "${{ github.event.inputs.file_path }}"
 
       - name: Create Pull Request
+        id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: "fix: resolve security issue ${{ github.event.inputs.jira_key }}"
+          # Use the input key you defined in the workflow_dispatch section
           branch: "fix/${{ github.event.inputs.jira_key }}"
+          commit-message: "fix: resolve security issue ${{ github.event.inputs.jira_key }}"
           title: "🤖 AI Fix: ${{ github.event.inputs.jira_key }}"
           body: |
             Automated fix for SonarQube issue.
