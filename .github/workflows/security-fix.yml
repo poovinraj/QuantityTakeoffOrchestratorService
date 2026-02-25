@@ -23,13 +23,13 @@ jobs:
 
       - name: Setup Copilot CLI
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           gh extension install github/gh-copilot --force
 
       - name: Generate and Apply Fix
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           # The prompt now specifically tells Copilot WHICH lines to look at
           PROMPT="Fix the security vulnerability in '${{ github.event.inputs.file_path }}' at lines ${{ github.event.inputs.line_numbers }}. 
