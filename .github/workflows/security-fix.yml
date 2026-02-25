@@ -22,23 +22,22 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Copilot CLI
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           gh extension install github/gh-copilot --force
 
       - name: Generate and Apply Fix
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          # The prompt now specifically tells Copilot WHICH lines to look at
-          PROMPT="Fix the security vulnerability in '${{ github.event.inputs.file_path }}' at lines ${{ github.event.inputs.line_numbers }}. 
-          The issue is: ${{ github.event.inputs.issue_msg }}. 
+          PROMPT="Fix the security vulnerability in '${{ github.event.inputs.file_path }}' at lines ${{ github.event.inputs.line_numbers }}.
+          The issue is: ${{ github.event.inputs.issue_msg }}.
           Return ONLY the corrected code for the entire file, no explanation."
 
           gh copilot suggest -p "$PROMPT" > suggested_fix.txt
-          
-          # Clean up Markdown backticks if present
           sed -i '/```/d' suggested_fix.txt
           cat suggested_fix.txt > ${{ github.event.inputs.file_path }}
 
