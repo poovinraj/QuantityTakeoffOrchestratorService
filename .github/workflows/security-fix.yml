@@ -3,13 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       jira_key:
-        description: 'Jira ID'
         required: true
       issue_msg:
-        description: 'Vulnerability details'
         required: true
       file_path:
-        description: 'File to fix'
+        required: true
+      line_numbers: 
         required: true
 
 jobs:
@@ -22,33 +21,33 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup GitHub CLI & Copilot
+      - name: Setup Copilot CLI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh extension install github/gh-copilot --force
 
-      - name: Generate Fix
+      - name: Generate and Apply Fix
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # We ask Copilot for the fix and pipe it directly to the file
-          # The '-p' flag is for "prompt" mode which works in CI
-          gh copilot suggest -p "Fix this vulnerability in ${{ github.event.inputs.file_path }}: ${{ github.event.inputs.issue_msg }}. Return only code." > suggested_fix.txt
+          # The prompt now specifically tells Copilot WHICH lines to look at
+          PROMPT="Fix the security vulnerability in '${{ github.event.inputs.file_path }}' at lines ${{ github.event.inputs.line_numbers }}. 
+          The issue is: ${{ github.event.inputs.issue_msg }}. 
+          Return ONLY the corrected code for the entire file, no explanation."
+
+          gh copilot suggest -p "$PROMPT" > suggested_fix.txt
           
-          # Basic cleanup to remove any markdown backticks Copilot might include
+          # Clean up Markdown backticks if present
           sed -i '/```/d' suggested_fix.txt
           cat suggested_fix.txt > ${{ github.event.inputs.file_path }}
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           branch: "fix/${{ github.event.inputs.jira_key }}"
           title: "🤖 AI Fix: ${{ github.event.inputs.jira_key }}"
-          commit-message: "fix: automated security patch for ${{ github.event.inputs.jira_key }}"
           body: |
-            ## Automated Security Fix
-            - **Jira Ticket:** [${{ github.event.inputs.jira_key }}](https://jira.trimble.tools/browse/${{ github.event.inputs.jira_key }})
-            - **Issue Description:** ${{ github.event.inputs.issue_msg }}
             - **Fixed File:** `${{ github.event.inputs.file_path }}`
+            - **Affected Lines:** ${{ github.event.inputs.line_numbers }}
+            - **Issue:** ${{ github.event.inputs.issue_msg }}
