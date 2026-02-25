@@ -27,13 +27,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: AI Fixer Agent
-        # env:
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: AI Fixer with Copilot CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Uses the built-in token
         run: |
-          echo "Processing ${{ github.event.inputs.file_path }}..."
-          # Logic to call AI and apply fix would go here
-          # Example: python fix_script.py "${{ github.event.inputs.issue_msg }}" "${{ github.event.inputs.file_path }}"
+          # 1. Install the Copilot CLI extension if not present
+          gh extension install github/gh-copilot --force
+
+          # 2. Ask Copilot to suggest a fix and apply it
+          # We pass the issue message and file path from the n8n inputs
+          echo "🤖 Copilot is analyzing ${{ github.event.inputs.file_path }}..."
+          
+          gh copilot suggest "Fix the security vulnerability in ${{ github.event.inputs.file_path }} described as: ${{ github.event.inputs.issue_msg }}. Provide only the code fix." > fix_suggestion.txt
+          
+          # 3. Logic to apply the fix (this depends on your specific CLI setup)
+          # For a basic implementation, you can have Copilot overwrite the file:
+          cat fix_suggestion.txt > ${{ github.event.inputs.file_path }}
 
       - name: Create Pull Request
         id: cpr
