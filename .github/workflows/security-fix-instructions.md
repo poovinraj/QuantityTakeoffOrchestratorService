@@ -1,30 +1,42 @@
 ---
 name: AI Security Auto-Fixer
+# Add an empty 'on' trigger to satisfy the GitHub Actions compiler
 on:
   workflow_dispatch:
+    inputs:
+      jira_key:
+        description: "Jira Issue Key"
+        required: true
+        type: string
+      issue_msg:
+        description: "Description of the security vulnerability"
+        required: true
+        type: string
+      file_path:
+        description: "Relative path to the file containing the vulnerability"
+        required: true
+        type: string
+      line_numbers:
+        description: "Line number(s) where the vulnerability is located"
+        required: true
+        type: string
+
+description: Fixes a security vulnerability reported in Jira in the specified file
+engine: copilot
+permissions:
+  contents: read
+  pull-requests: read
+safe-outputs:
+  create-pull-request: {}
 ---
 
-# AI Security Auto-Fixer — Workflow Execution Instructions
+# Instructions
 
-## Workflow
+You are an AI security engineer. A security vulnerability has been identified in the codebase.
 
-- **File:** `.github/workflows/security-fix-instructions.md`
-- **Name:** `AI Security Auto-Fixer`
-- **Trigger:** `workflow_dispatch` (manual)
-
-## Required Parameters
-
-| Parameter      | Required | Description                                                                 |
-|----------------|----------|-----------------------------------------------------------------------------|
-| `jira_key`     | Yes      | The Jira ticket key associated with the security issue (e.g. `SEC-1234`).  |
-| `issue_msg`    | Yes      | A description of the security vulnerability to fix.                        |
-| `file_path`    | Yes      | The relative path to the file containing the vulnerability.                |
-| `line_numbers` | Yes      | The line number(s) in the file where the vulnerability is located.         |
-
-## What the Workflow Does
-
-1. **Checks out** the repository code.
-2. **Installs** the GitHub Copilot CLI extension.
-3. **Generates a fix** by prompting Copilot with the file path, line numbers, and issue description, then overwrites the vulnerable file with the suggested fix.
-4. **Creates a pull request** on a branch named `fix/<jira_key>` with details about the fixed file, affected lines, and the issue.
+1. Read the vulnerability description: ${{ inputs.issue_msg }}.
+2. Open the file at `${{ inputs.file_path }}` and navigate to line(s) ${{ inputs.line_numbers }}.
+3. Analyze the code at those lines and implement a fix for the described security issue.
+4. Create a new local branch named `fix/${{ inputs.jira_key }}`.
+5. git add and git commit your changes with a meaningful message referencing ${{ inputs.jira_key }}.
 
