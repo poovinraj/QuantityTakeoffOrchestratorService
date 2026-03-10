@@ -8,7 +8,7 @@ on:
 
 ## Workflow
 
-- **File:** `.github/workflows/security-fix.yml`
+- **File:** `.github/workflows/security-fix-instructions.md`
 - **Name:** `AI Security Auto-Fixer`
 - **Trigger:** `workflow_dispatch` (manual)
 
@@ -20,16 +20,6 @@ on:
 | `issue_msg`    | Yes      | A description of the security vulnerability to fix.                        |
 | `file_path`    | Yes      | The relative path to the file containing the vulnerability.                |
 | `line_numbers` | Yes      | The line number(s) in the file where the vulnerability is located.         |
-
-## Execution
-
-```bash
-gh workflow run security-fix.yml \
-  -f jira_key="SEC-1234" \
-  -f issue_msg="SQL injection in user input handling" \
-  -f file_path="src/QuantityTakeoffOrchestratorService/Repositories/SomeRepository.cs" \
-  -f line_numbers="42-45"
-```
 
 ## What the Workflow Does
 
