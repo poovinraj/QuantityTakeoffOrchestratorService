@@ -39,4 +39,5 @@ You are an AI security engineer. A security vulnerability has been identified in
 3. Analyze the code at those lines and implement a fix for the described security issue.
 4. Create a new local branch named `fix/${{ inputs.jira_key }}`.
 5. git add and git commit your changes with a meaningful message referencing ${{ inputs.jira_key }}.
+6. Use the create_pull_request tool to open a Pull Request.
 
