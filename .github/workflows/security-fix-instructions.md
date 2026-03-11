@@ -44,5 +44,11 @@ You are an AI security engineer. A security vulnerability has been identified in
 4. Create a new local branch named `fix/${{ inputs.jira_key }}`.
 5. git add and git commit your changes with a meaningful message referencing ${{ inputs.jira_key }}.
 6. Use the create_pull_request tool to open a Pull Request.
-7. Finally, send a POST request to `${{ inputs.resumeUrl }}` using `curl` to notify n8n that execution is complete. Include the Pull Request URL in the JSON body.
+7. Finally, run the following command exactly to notify n8n that execution is complete, replacing `<PR_URL>` with the actual Pull Request URL from step 6:
+   ```bash
+   curl -X POST "${{ inputs.resumeUrl }}" \
+     -H "Content-Type: application/json" \
+     -d '{"status": "completed", "result": "success", "pull_request_url": "<PR_URL>"}'
+   ```
+   This step must always run, even if previous steps fail.
 
