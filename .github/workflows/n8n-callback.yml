@@ -22,18 +22,26 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            // Fetch the full workflow run to get dispatch inputs
-            const { data: run } = await github.rest.actions.getWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.payload.workflow_run.id
-            });
+            // Use raw request instead of typed SDK to get the 'inputs' field
+            const { data: run } = await github.request(
+              'GET /repos/{owner}/{repo}/actions/runs/{run_id}',
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.payload.workflow_run.id
+              }
+            );
 
-            const resumeUrl = (run.inputs && run.inputs.resumeUrl) || '';
-            const jiraKey = (run.inputs && run.inputs.jira_key) || '';
+            core.info(`Run ID: ${run.id}, event: ${run.event}, status: ${run.status}`);
+            core.info(`Inputs from API: ${JSON.stringify(run.inputs)}`);
+
+            const inputs = run.inputs || {};
+            const resumeUrl = inputs.resumeUrl || '';
+            const jiraKey = inputs.jira_key || '';
 
             if (!resumeUrl) {
               core.warning('No resumeUrl found in workflow inputs — skipping callback.');
+              core.info('This can happen if the workflow was triggered manually without providing a resumeUrl.');
             }
 
             core.setOutput('resume_url', resumeUrl);
