@@ -32,6 +32,8 @@ permissions:
   pull-requests: read
 safe-outputs:
   create-pull-request: {}
+  allowed-domains:
+    - "*.trimble.com"
 ---
 
 # Instructions
