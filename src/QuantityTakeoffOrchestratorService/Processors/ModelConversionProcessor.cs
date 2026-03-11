@@ -60,7 +60,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
     /// <param name="conversionRequest">The model conversion request containing all necessary parameters</param>
     /// <returns>A result object with details about the processed model or error information</returns>
     [Trace]
-    public async Task<ModelProcessingResult> ConvertTrimBimModelAndUploadToFileService(ModelConversionRequest conversionRequest)
+    public async Task<ModelProcessingResult> ConvertTrimBimModelAndUploadToFileService(ModelConversionRequest request)
     {
         var stopwatch = Stopwatch.StartNew();
         GC.Collect(); // Force garbage collection
@@ -199,7 +199,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
             var memoryAtException = GetMemoryUsage();
             var processInfo = GetProcessMemoryInfo();
             
-            string errorMessage = $"Failed to process model conversion request for ModelReferenceId: {conversionRequest.TrimbleConnectModelId}";
+            string errorMessage = $"Failed to process model conversion request for ModelReferenceId: {request.TrimbleConnectModelId}";
             _logger.LogError(ex, "{ErrorMessage}. Memory at exception: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB), " +
                 "Working Set: {WorkingSet}MB, Private Bytes: {PrivateBytes}MB, Process time: {ElapsedMs}ms", 
                 errorMessage, memoryAtException, memoryAtException - memoryUsageStart, 
