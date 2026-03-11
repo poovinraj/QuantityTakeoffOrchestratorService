@@ -6,52 +6,86 @@ on:
     types:
       - completed
 
+permissions:
+  actions: read
+  pull-requests: read
+
 jobs:
   notify:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event.workflow_run.event == 'workflow_dispatch' &&
+      github.event.workflow_run.conclusion == 'success'
     steps:
-      - name: Get resume URL from triggering workflow inputs
+      - name: Get triggering workflow run details
         id: get-inputs
         uses: actions/github-script@v8
         with:
           script: |
-            // Get the workflow run that triggered this
-            const run = await github.rest.actions.getWorkflowRun({
+            // Fetch the full workflow run to get dispatch inputs
+            const { data: run } = await github.rest.actions.getWorkflowRun({
               owner: context.repo.owner,
               repo: context.repo.repo,
               run_id: context.payload.workflow_run.id
             });
 
-            // Get the inputs from the triggering workflow dispatch
-            const inputs = run.data.inputs || {};
-            core.setOutput('resume_url', inputs.resumeUrl || '');
-            core.setOutput('jira_key', inputs.jira_key || '');
+            const resumeUrl = (run.inputs && run.inputs.resumeUrl) || '';
+            const jiraKey = (run.inputs && run.inputs.jira_key) || '';
 
-      - name: Get created PR URL
+            if (!resumeUrl) {
+              core.warning('No resumeUrl found in workflow inputs — skipping callback.');
+            }
+
+            core.setOutput('resume_url', resumeUrl);
+            core.setOutput('jira_key', jiraKey);
+            core.info(`resumeUrl: ${resumeUrl ? '(set)' : '(empty)'}, jira_key: ${jiraKey}`);
+
+      - name: Find created PR
         id: get-pr
         if: steps.get-inputs.outputs.resume_url != ''
         uses: actions/github-script@v8
         with:
           script: |
-            const jiraKey = '${{ steps.get-inputs.outputs.jira_key }}';
-            // Find PRs with the fix/ branch pattern
-            const { data: pulls } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              head: `${context.repo.owner}:fix/${jiraKey}`
-            });
-            const prUrl = pulls.length > 0 ? pulls[0].html_url : '';
-            core.setOutput('pr_url', prUrl);
+            const jiraKey = process.env.JIRA_KEY;
+            let prUrl = '';
 
-      - name: Notify n8n
+            if (jiraKey) {
+              // Look for PR from the fix/<jira_key> branch
+              const { data: pulls } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'all',
+                head: `${context.repo.owner}:fix/${jiraKey}`,
+                sort: 'created',
+                direction: 'desc',
+                per_page: 1
+              });
+              prUrl = pulls.length > 0 ? pulls[0].html_url : '';
+            }
+
+            core.setOutput('pr_url', prUrl);
+            core.info(`PR URL: ${prUrl || '(not found)'}`);
+        env:
+          JIRA_KEY: ${{ steps.get-inputs.outputs.jira_key }}
+
+      - name: Send callback to n8n
         if: steps.get-inputs.outputs.resume_url != ''
         env:
           RESUME_URL: ${{ steps.get-inputs.outputs.resume_url }}
           PR_URL: ${{ steps.get-pr.outputs.pr_url }}
           JIRA_KEY: ${{ steps.get-inputs.outputs.jira_key }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
-          curl -X POST "$RESUME_URL" \
+          HTTP_STATUS=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+            -X POST "$RESUME_URL" \
             -H "Content-Type: application/json" \
-            -d "{\"status\": \"completed\", \"result\": \"success\", \"jira_key\": \"$JIRA_KEY\", \"pull_request_url\": \"$PR_URL\"}"
+            -d "{\"status\": \"completed\", \"result\": \"success\", \"jira_key\": \"$JIRA_KEY\", \"pull_request_url\": \"$PR_URL\", \"run_url\": \"$RUN_URL\"}")
+
+          echo "n8n response status: $HTTP_STATUS"
+          cat /tmp/response.txt
+          echo ""
+
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::n8n callback failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
