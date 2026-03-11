@@ -23,7 +23,7 @@
 #
 # Fixes a security vulnerability reported in Jira in the specified file
 #
-# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"c54ac0b30904191e5d54cc8b97c8b96ccbe30ed78898b36ad3f536b2bb260c50","compiler_version":"v0.57.0","strict":true}
+# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"bff5c59ff44495905fe453807e23790f583579ee2890ad554cdbe56dc275b8bd","compiler_version":"v0.57.0","strict":true}
 
 name: "AI Security Auto-Fixer"
 "on":
@@ -43,6 +43,10 @@ name: "AI Security Auto-Fixer"
         type: string
       line_numbers:
         description: Line number(s) where the vulnerability is located
+        required: true
+        type: string
+      resumeUrl:
+        description: The n8n webhook callback URL
         required: true
         type: string
 
@@ -132,6 +136,7 @@ jobs:
           GH_AW_INPUTS_ISSUE_MSG: ${{ inputs.issue_msg }}
           GH_AW_INPUTS_JIRA_KEY: ${{ inputs.jira_key }}
           GH_AW_INPUTS_LINE_NUMBERS: ${{ inputs.line_numbers }}
+          GH_AW_INPUTS_RESUMEURL: ${{ inputs.resumeUrl }}
         run: |
           bash /opt/gh-aw/actions/create_prompt_first.sh
           {
@@ -193,6 +198,7 @@ jobs:
           GH_AW_INPUTS_ISSUE_MSG: ${{ inputs.issue_msg }}
           GH_AW_INPUTS_JIRA_KEY: ${{ inputs.jira_key }}
           GH_AW_INPUTS_LINE_NUMBERS: ${{ inputs.line_numbers }}
+          GH_AW_INPUTS_RESUMEURL: ${{ inputs.resumeUrl }}
         with:
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
@@ -215,6 +221,7 @@ jobs:
           GH_AW_INPUTS_ISSUE_MSG: ${{ inputs.issue_msg }}
           GH_AW_INPUTS_JIRA_KEY: ${{ inputs.jira_key }}
           GH_AW_INPUTS_LINE_NUMBERS: ${{ inputs.line_numbers }}
+          GH_AW_INPUTS_RESUMEURL: ${{ inputs.resumeUrl }}
         with:
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
@@ -237,7 +244,8 @@ jobs:
                 GH_AW_INPUTS_FILE_PATH: process.env.GH_AW_INPUTS_FILE_PATH,
                 GH_AW_INPUTS_ISSUE_MSG: process.env.GH_AW_INPUTS_ISSUE_MSG,
                 GH_AW_INPUTS_JIRA_KEY: process.env.GH_AW_INPUTS_JIRA_KEY,
-                GH_AW_INPUTS_LINE_NUMBERS: process.env.GH_AW_INPUTS_LINE_NUMBERS
+                GH_AW_INPUTS_LINE_NUMBERS: process.env.GH_AW_INPUTS_LINE_NUMBERS,
+                GH_AW_INPUTS_RESUMEURL: process.env.GH_AW_INPUTS_RESUMEURL
               }
             });
       - name: Validate prompt placeholders

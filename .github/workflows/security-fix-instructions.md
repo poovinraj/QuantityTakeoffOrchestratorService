@@ -20,6 +20,10 @@ on:
         description: "Line number(s) where the vulnerability is located"
         required: true
         type: string
+      resumeUrl:
+        description: "The n8n webhook callback URL"
+        required: true
+        type: string
 
 description: Fixes a security vulnerability reported in Jira in the specified file
 engine: copilot
@@ -40,4 +44,5 @@ You are an AI security engineer. A security vulnerability has been identified in
 4. Create a new local branch named `fix/${{ inputs.jira_key }}`.
 5. git add and git commit your changes with a meaningful message referencing ${{ inputs.jira_key }}.
 6. Use the create_pull_request tool to open a Pull Request.
+7. Finally, send a POST request to `${{ inputs.resumeUrl }}` using `curl` to notify n8n that execution is complete. Include the Pull Request URL in the JSON body.
 
