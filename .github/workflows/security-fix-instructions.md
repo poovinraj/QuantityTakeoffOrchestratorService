@@ -33,7 +33,7 @@ permissions:
 safe-outputs:
   create-pull-request: {}
   allowed-domains:
-    - "*.trimble.com"
+    - "flows-webhook.stage.trimble-ai.com"
 ---
 
 # Instructions
