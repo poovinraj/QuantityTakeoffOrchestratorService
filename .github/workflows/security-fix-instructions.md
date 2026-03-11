@@ -32,8 +32,6 @@ permissions:
   pull-requests: read
 safe-outputs:
   create-pull-request: {}
-  allowed-domains:
-    - "flows-webhook.stage.trimble-ai.com"
 ---
 
 # Instructions
@@ -46,9 +44,4 @@ You are an AI security engineer. A security vulnerability has been identified in
 4. Create a new local branch named `fix/${{ inputs.jira_key }}`.
 5. git add and git commit your changes with a meaningful message referencing ${{ inputs.jira_key }}.
 6. Use the create_pull_request tool to open a Pull Request.
-7. Extract the Pull Request URL from the `create_pull_request` tool output in step 6. Then immediately execute this exact shell command — substitute the real PR URL inline, do not use a placeholder, do not echo it:
-   ```bash
-   curl -X POST "${{ inputs.resumeUrl }}" -H "Content-Type: application/json" -d "{\"status\": \"completed\", \"result\": \"success\", \"pull_request_url\": \"ACTUAL_PR_URL_HERE\"}"
-   ```
-   Replace `ACTUAL_PR_URL_HERE` with the real URL before running. Confirm the curl exit code is 0.
 

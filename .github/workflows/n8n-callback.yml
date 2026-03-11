@@ -1,0 +1,57 @@
+name: n8n Callback - Notify Completion
+
+on:
+  workflow_run:
+    workflows: ["AI Security Auto-Fixer"]
+    types:
+      - completed
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Get resume URL from triggering workflow inputs
+        id: get-inputs
+        uses: actions/github-script@v8
+        with:
+          script: |
+            // Get the workflow run that triggered this
+            const run = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id
+            });
+
+            // Get the inputs from the triggering workflow dispatch
+            const inputs = run.data.inputs || {};
+            core.setOutput('resume_url', inputs.resumeUrl || '');
+            core.setOutput('jira_key', inputs.jira_key || '');
+
+      - name: Get created PR URL
+        id: get-pr
+        if: steps.get-inputs.outputs.resume_url != ''
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const jiraKey = '${{ steps.get-inputs.outputs.jira_key }}';
+            // Find PRs with the fix/ branch pattern
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:fix/${jiraKey}`
+            });
+            const prUrl = pulls.length > 0 ? pulls[0].html_url : '';
+            core.setOutput('pr_url', prUrl);
+
+      - name: Notify n8n
+        if: steps.get-inputs.outputs.resume_url != ''
+        env:
+          RESUME_URL: ${{ steps.get-inputs.outputs.resume_url }}
+          PR_URL: ${{ steps.get-pr.outputs.pr_url }}
+          JIRA_KEY: ${{ steps.get-inputs.outputs.jira_key }}
+        run: |
+          curl -X POST "$RESUME_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\": \"completed\", \"result\": \"success\", \"jira_key\": \"$JIRA_KEY\", \"pull_request_url\": \"$PR_URL\"}"
