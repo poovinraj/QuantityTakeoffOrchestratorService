@@ -133,6 +133,7 @@ jobs:
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
           GH_AW_INPUTS_FILE_PATH: ${{ inputs.file_path }}
+          GH_AW_INPUTS_ISSUE_KEY: ${{ inputs.issue_key }}
           GH_AW_INPUTS_ISSUE_MSG: ${{ inputs.issue_msg }}
           GH_AW_INPUTS_JIRA_KEY: ${{ inputs.jira_key }}
           GH_AW_INPUTS_LINE_NUMBERS: ${{ inputs.line_numbers }}
@@ -193,7 +194,9 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
+          GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
           GH_AW_INPUTS_FILE_PATH: ${{ inputs.file_path }}
+          GH_AW_INPUTS_ISSUE_KEY: ${{ inputs.issue_key }}
           GH_AW_INPUTS_ISSUE_MSG: ${{ inputs.issue_msg }}
           GH_AW_INPUTS_JIRA_KEY: ${{ inputs.jira_key }}
           GH_AW_INPUTS_LINE_NUMBERS: ${{ inputs.line_numbers }}
@@ -216,6 +219,7 @@ jobs:
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
           GH_AW_INPUTS_FILE_PATH: ${{ inputs.file_path }}
+          GH_AW_INPUTS_ISSUE_KEY: ${{ inputs.issue_key }}
           GH_AW_INPUTS_ISSUE_MSG: ${{ inputs.issue_msg }}
           GH_AW_INPUTS_JIRA_KEY: ${{ inputs.jira_key }}
           GH_AW_INPUTS_LINE_NUMBERS: ${{ inputs.line_numbers }}
@@ -239,6 +243,7 @@ jobs:
                 GH_AW_GITHUB_RUN_ID: process.env.GH_AW_GITHUB_RUN_ID,
                 GH_AW_GITHUB_WORKSPACE: process.env.GH_AW_GITHUB_WORKSPACE,
                 GH_AW_INPUTS_FILE_PATH: process.env.GH_AW_INPUTS_FILE_PATH,
+                GH_AW_INPUTS_ISSUE_KEY: process.env.GH_AW_INPUTS_ISSUE_KEY,
                 GH_AW_INPUTS_ISSUE_MSG: process.env.GH_AW_INPUTS_ISSUE_MSG,
                 GH_AW_INPUTS_JIRA_KEY: process.env.GH_AW_INPUTS_JIRA_KEY,
                 GH_AW_INPUTS_LINE_NUMBERS: process.env.GH_AW_INPUTS_LINE_NUMBERS
