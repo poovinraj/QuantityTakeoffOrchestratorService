@@ -20,10 +20,6 @@ on:
         description: "Line number(s) where the vulnerability is located"
         required: true
         type: string
-      resumeUrl:
-        description: "The n8n webhook callback URL"
-        required: true
-        type: string
 
 description: Fixes a security vulnerability reported in Jira in the specified file
 engine: copilot
