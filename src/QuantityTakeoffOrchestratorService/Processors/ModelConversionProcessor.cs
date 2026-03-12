@@ -57,10 +57,10 @@ public class ModelConversionProcessor : IModelConversionProcessor
     /// Processes a BIM model from Trimble Connect, converting it to a format optimized for quantity takeoff
     /// operations and storing the processed data in Trimble File Service.
     /// </summary>
-    /// <param name="conversionRequest">The model conversion request containing all necessary parameters</param>
+    /// <param name="request">The model conversion request containing all necessary parameters</param>
     /// <returns>A result object with details about the processed model or error information</returns>
     [Trace]
-    public async Task<ModelProcessingResult> ConvertTrimBimModelAndUploadToFileService(ModelConversionRequest conversionRequest)
+    public async Task<ModelProcessingResult> ConvertTrimBimModelAndUploadToFileService(ModelConversionRequest request)
     {
         var stopwatch = Stopwatch.StartNew();
         GC.Collect(); // Force garbage collection
@@ -71,8 +71,8 @@ public class ModelConversionProcessor : IModelConversionProcessor
             // Log model details to New Relic for tracing
             NewRelicHelper.AddCustomLoggingAttributes(new Dictionary<string, string?>
             {
-                { "JobModelId", conversionRequest.JobModelId },
-                { "connectModelId", conversionRequest.TrimbleConnectModelId },
+                { "JobModelId", request.JobModelId },
+                { "connectModelId", request.TrimbleConnectModelId },
             });
 
             _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 1 - Starting model conversion with initial memory usage: {MemoryUsageMB}MB for ModelReferenceId: {ModelReferenceId}",
@@ -80,35 +80,35 @@ public class ModelConversionProcessor : IModelConversionProcessor
 
             // Step 1: Download and parse the BIM model
             _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 2 - Starting model download and parsing for ModelReferenceId: {ModelReferenceId}",
-                conversionRequest.TrimbleConnectModelId);
+                request.TrimbleConnectModelId);
             var model = await ProcessTrimBim(
-                conversionRequest.UserAccessToken,
-                conversionRequest.TrimbleConnectModelId,
-                conversionRequest.ModelVersionId);
+                request.UserAccessToken,
+                request.TrimbleConnectModelId,
+                request.ModelVersionId);
 
             var memoryAfterModelLoad = GetMemoryUsage();
             _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 3 - Memory after model load: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB) for ModelReferenceId: {ModelReferenceId}",
-                memoryAfterModelLoad, memoryAfterModelLoad - memoryUsageStart, conversionRequest.TrimbleConnectModelId);
+                memoryAfterModelLoad, memoryAfterModelLoad - memoryUsageStart, request.TrimbleConnectModelId);
 
             if (model is null)
             {
                 _logger.LogError("Model is null after processing for ModelReferenceId: {ModelReferenceId}",
-                    conversionRequest.TrimbleConnectModelId);
-                return CreateFailureResult(conversionRequest, "Model is null after processing.");
+                    request.TrimbleConnectModelId);
+                return CreateFailureResult(request, "Model is null after processing.");
             }
 
             // Step 2: Extract elements and create JSON
             _logger.LogInformation("Generating takeoff elements JSON for ModelReferenceId: {ModelReferenceId}",
-                conversionRequest.TrimbleConnectModelId);
+                request.TrimbleConnectModelId);
             
             // Use the stream-based version to prevent memory issues
             var tempJsonFilePath = await Generate3DTakeoffElementsJsonAsync(
-                conversionRequest.TrimbleConnectModelId,
+                request.TrimbleConnectModelId,
                 model);
 
             var memoryAfterJsonGeneration = GetMemoryUsage();
             _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 4 - Memory after JSON generation: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB), for ModelReferenceId: {ModelReferenceId}",
-                memoryAfterJsonGeneration, memoryAfterJsonGeneration - memoryAfterModelLoad,  conversionRequest.TrimbleConnectModelId);
+                memoryAfterJsonGeneration, memoryAfterJsonGeneration - memoryAfterModelLoad,  request.TrimbleConnectModelId);
 
             // Step 3: Upload processed model to file service
             string fileId;
@@ -119,15 +119,15 @@ public class ModelConversionProcessor : IModelConversionProcessor
                 long jsonByteSize = fileInfo.Length;
                 
                 _logger.LogInformation("Uploading JSON to file service for ModelReferenceId: {ModelReferenceId}, File size: {JsonSizeMB:F2}MB",
-                        conversionRequest.TrimbleConnectModelId, jsonByteSize / (1024.0 * 1024.0));
+                        request.TrimbleConnectModelId, jsonByteSize / (1024.0 * 1024.0));
 
                 // Read the file back into memory in a controlled manner for upload
                 using (var jsonStream = fileInfo.OpenRead())
                 {
                     fileId = await UploadToConnectFileService(
-                        conversionRequest.SpaceId,
-                        conversionRequest.FolderId,
-                        conversionRequest.TrimbleConnectModelId,
+                        request.SpaceId,
+                        request.FolderId,
+                        request.TrimbleConnectModelId,
                         jsonStream);
                     jsonStream.Close();
                 }
@@ -153,11 +153,11 @@ public class ModelConversionProcessor : IModelConversionProcessor
 
             var memoryAfterUpload = GetMemoryUsage();
             _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 5 -  Memory after upload: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB) for ModelReferenceId: {ModelReferenceId}",
-                memoryAfterUpload, memoryAfterUpload - memoryAfterJsonGeneration, conversionRequest.TrimbleConnectModelId);
+                memoryAfterUpload, memoryAfterUpload - memoryAfterJsonGeneration, request.TrimbleConnectModelId);
 
             // These two operations can run in parallel
             var uniquePropertiesTask = Task.Run(() => ProcessModelAndFetchUniquePropertyDefinitions(model));
-            var fileDownloadUrlTask = GetFileDownloadUrlFromFileService(conversionRequest.SpaceId, fileId);
+            var fileDownloadUrlTask = GetFileDownloadUrlFromFileService(request.SpaceId, fileId);
 
             // Wait for both tasks to complete
             await Task.WhenAll(uniquePropertiesTask, fileDownloadUrlTask);
@@ -171,14 +171,14 @@ public class ModelConversionProcessor : IModelConversionProcessor
 
             var memoryAfterModelRelease = GetMemoryUsage();
             _logger.LogInformation("ConvertTrimBimModelAndUploadToFileService: 6 - Memory after model release: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB) for ModelReferenceId: {ModelReferenceId}",
-                memoryAfterModelRelease, memoryAfterModelRelease - memoryAfterUpload, conversionRequest.TrimbleConnectModelId);
+                memoryAfterModelRelease, memoryAfterModelRelease - memoryAfterUpload, request.TrimbleConnectModelId);
 
             // Step 4: Update model metadata in the database
             await _modelMetaDataProcessor.UpdateFileIdAndPSetDefinitionsForConnectModel(
-                conversionRequest.TrimbleConnectModelId,
+                request.TrimbleConnectModelId,
                 fileId,
                 uniquePropertyDefinitions,
-                conversionRequest.CustomerId);
+                request.CustomerId);
 
             uniquePropertyDefinitions = null; // Release from memory
             var finalMemory = GetMemoryUsage();
@@ -199,7 +199,7 @@ public class ModelConversionProcessor : IModelConversionProcessor
             var memoryAtException = GetMemoryUsage();
             var processInfo = GetProcessMemoryInfo();
             
-            string errorMessage = $"Failed to process model conversion request for ModelReferenceId: {conversionRequest.TrimbleConnectModelId}";
+            string errorMessage = $"Failed to process model conversion request for ModelReferenceId: {request.TrimbleConnectModelId}";
             _logger.LogError(ex, "{ErrorMessage}. Memory at exception: {MemoryUsageMB}MB (Δ {MemoryDeltaMB}MB), " +
                 "Working Set: {WorkingSet}MB, Private Bytes: {PrivateBytes}MB, Process time: {ElapsedMs}ms", 
                 errorMessage, memoryAtException, memoryAtException - memoryUsageStart, 
